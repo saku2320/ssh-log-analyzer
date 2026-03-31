@@ -1,0 +1,4 @@
+ssh_log_analyzer
+*.o
+*.out
+.vscode/
