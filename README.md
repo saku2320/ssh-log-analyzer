@@ -35,6 +35,7 @@ gcc -Wall -Wextra -std=c11 -o ssh_log_analyzer src/main.c src/analyzer.c src/par
 ssh-log-analyzer$ tree 
 ├── Makefile
 ├── README.md
+├──.gitignore
 ├── sample_log/
 │   └── auth.log
 └── src/
