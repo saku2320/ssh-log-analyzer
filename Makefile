@@ -5,7 +5,7 @@ TARGET = ssh_log_analyzer
 SRCS = src/main.c src/parser.c src/analyzer.c src/report.c
 OBJS = $(SRCS:.c=.o)
 
-LOGFILE = sample_log/auth_sample-mini.log
+LOGFILE = sample_log/auth.log
 
 all: $(TARGET)
 
@@ -17,9 +17,6 @@ src/%.o: src/%.c
 
 run: $(TARGET)
 	./$(TARGET) $(LOGFILE)
-
-run-big: $(TARGET)
-	./$(TARGET) sample_log/auth_sample-big.log
 
 clean:
 	rm -f $(TARGET) $(OBJS)
