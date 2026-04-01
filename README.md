@@ -32,19 +32,19 @@ gcc -Wall -Wextra -std=c11 -o ssh_log_analyzer src/main.c src/analyzer.c src/par
 
 ## 構成内容
 ssh-log-analyzer$ tree <br>
-.<br>
+ssh-log-analyzer/<br>
 ├── Makefile<br>
 ├── README.md<br>
-├── sample_log<br>
+├── sample_log/<br>
 │   └── auth.log<br>
-└── src<br>
-    ├── analyzer.c<br>
-    ├── analyzer.h<br>
-    ├── main.c<br>
-    ├── parser.c<br>
-    ├── parser.h<br>
-    ├── report.c<br>
-    └── report.h<br>
+└── src/<br>
+    ├── analyzer.c<br>
+    ├── analyzer.h<br>
+    ├── main.c<br>
+    ├── parser.c<br>
+    ├── parser.h<br>
+    ├── report.c<br>
+    └── report.h<br>
 
 ## 対応ログ形式例
 現時点では以下のようなSSH認証ログを対象としている。今後、より多くの形式に対応させていく。
