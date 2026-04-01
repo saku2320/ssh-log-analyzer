@@ -1,6 +1,9 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "analyzer.h"
+
+#define INITIAL_IP_CAPACITY 16
 
 void init_summary(Summary *summary) {
     summary->total_failed = 0;
@@ -8,14 +11,41 @@ void init_summary(Summary *summary) {
     summary->root_attempts = 0;
 }
 
-void init_ip_stats(IpStats stats[], int size) {
-    int i;
+void init_ip_stats_list(IpStatsList *list) {
+    list->items = NULL;
+    list->count = 0;
+    list->capacity = 0;
+}
 
-    for (i = 0; i < size; i++) {
-        stats[i].ip[0] = '\0';
-        stats[i].failed_count = 0;
-        stats[i].success_count = 0;
+void free_ip_stats_list(IpStatsList *list) {
+    free(list->items);
+    list->items = NULL;
+    list->count = 0;
+    list->capacity = 0;
+}
+
+static int ensure_capacity(IpStatsList *list) {
+    IpStats *new_items;
+    size_t new_capacity;
+
+    if (list->count < list->capacity) {
+        return 1;
     }
+
+    if (list->capacity == 0) {
+        new_capacity = INITIAL_IP_CAPACITY;
+    } else {
+        new_capacity = list->capacity * 2;
+    }
+
+    new_items = realloc(list->items, new_capacity * sizeof(IpStats));
+    if (new_items == NULL) {
+        return 0;
+    }
+
+    list->items = new_items;
+    list->capacity = new_capacity;
+    return 1;
 }
 
 void update_summary(Summary *summary, const LogEntry *entry) {
@@ -32,40 +62,34 @@ void update_summary(Summary *summary, const LogEntry *entry) {
     }
 }
 
-void update_ip_stats(IpStats stats[], int size, const LogEntry *entry) {
-    int i;
-    int empty_index = -1;
+int update_ip_stats(IpStatsList *list, const LogEntry *entry) {
+    size_t i;
 
     if (entry->ip[0] == '\0') {
-        return;
+        return 1;
     }
 
-    for (i = 0; i < size; i++) {
-        if (strcmp(stats[i].ip, entry->ip) == 0) {
+    for (i = 0; i < list->count; i++) {
+        if (strcmp(list->items[i].ip, entry->ip) == 0) {
             if (entry->is_failed) {
-                stats[i].failed_count++;
+                list->items[i].failed_count++;
             }
             if (entry->is_success) {
-                stats[i].success_count++;
+                list->items[i].success_count++;
             }
-            return;
-        }
-
-        if (empty_index == -1 && stats[i].ip[0] == '\0') {
-            empty_index = i;
+            return 1;
         }
     }
 
-    if (empty_index != -1) {
-        strncpy(stats[empty_index].ip, entry->ip, MAX_IP_LENGTH - 1);
-        stats[empty_index].ip[MAX_IP_LENGTH - 1] = '\0';
-
-        if (entry->is_failed) {
-            stats[empty_index].failed_count = 1;
-        }
-
-        if (entry->is_success) {
-            stats[empty_index].success_count = 1;
-        }
+    if (!ensure_capacity(list)) {
+        return 0;
     }
+
+    strncpy(list->items[list->count].ip, entry->ip, MAX_IP_LENGTH - 1);
+    list->items[list->count].ip[MAX_IP_LENGTH - 1] = '\0';
+    list->items[list->count].failed_count = entry->is_failed ? 1 : 0;
+    list->items[list->count].success_count = entry->is_success ? 1 : 0;
+    list->count++;
+
+    return 1;
 }

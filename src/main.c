@@ -2,16 +2,22 @@
 #include <stdlib.h>
 #include "parser.h"
 #include "analyzer.h"
+#include "report.h"
 
 #define MAX_LINE_LENGTH 1024
+#define ALERT_THRESHOLD 5
+#define TOP_N 5
 
 int main(int argc, char *argv[]) {
     FILE *fp;
     char line[MAX_LINE_LENGTH];
     LogEntry entry;
     Summary summary;
-    IpStats stats[MAX_IP_STATS];
-    int i;
+    IpStatsList stats;
+
+    unsigned long total_lines = 0;
+    unsigned long parsed_lines = 0;
+    unsigned long ignored_lines = 0;
 
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <logfile>\n", argv[0]);
@@ -25,31 +31,40 @@ int main(int argc, char *argv[]) {
     }
 
     init_summary(&summary);
-    init_ip_stats(stats, MAX_IP_STATS);
+    init_ip_stats_list(&stats);
 
     while (fgets(line, sizeof(line), fp) != NULL) {
+        total_lines++;
+
         if (parse_log_line(line, &entry)) {
+            parsed_lines++;
             update_summary(&summary, &entry);
-            update_ip_stats(stats, MAX_IP_STATS, &entry);
+
+            if (!update_ip_stats(&stats, &entry)) {
+                fprintf(stderr, "Failed to update IP stats: out of memory\n");
+                fclose(fp);
+                free_ip_stats_list(&stats);
+                return 1;
+            }
+        } else {
+            ignored_lines++;
         }
     }
 
     fclose(fp);
 
-    printf("===== SSH Log Analysis Result =====\n");
-    printf("Total failed login attempts : %d\n", summary.total_failed);
-    printf("Total successful logins     : %d\n", summary.total_success);
-    printf("Root login attempts         : %d\n", summary.root_attempts);
+    print_summary(&summary);
 
-    printf("\n===== IP Statistics =====\n");
-    for (i = 0; i < MAX_IP_STATS; i++) {
-        if (stats[i].ip[0] != '\0') {
-            printf("IP: %-15s | Failed: %-3d | Success: %-3d\n",
-                   stats[i].ip,
-                   stats[i].failed_count,
-                   stats[i].success_count);
-        }
-    }
+    printf("\n===== Processing Stats =====\n");
+    printf("Total lines read           : %lu\n", total_lines);
+    printf("Parsed SSH auth lines      : %lu\n", parsed_lines);
+    printf("Ignored lines              : %lu\n", ignored_lines);
+    printf("Unique IPs tracked         : %zu\n", stats.count);
 
+    print_ip_stats(&stats);
+    print_suspicious_ips(&stats, ALERT_THRESHOLD);
+    print_top_failed_ips(&stats, TOP_N);
+
+    free_ip_stats_list(&stats);
     return 0;
 }
