@@ -36,7 +36,7 @@ ssh-log-analyzer$ tree <br>
 ├── Makefile<br>
 ├── README.md<br>
 ├── sample_log<br>
-│   └── auth.log<br>
+│   └── auth.log<br>
 └── src<br>
     ├── analyzer.c<br>
     ├── analyzer.h<br>
