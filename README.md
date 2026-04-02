@@ -52,6 +52,8 @@ ssh-log-analyzer$ tree
 - `Failed password for invalid user ... from ...`
 - `Failed password for ... from ...`
 - `Accepted password for ... from ...`
+- `Invalid user ... from ...`
+- `pam_unix(sshd:auth): authentication failure; ... rhost=... user=...`
 
 ## 進捗
 - 130行程度のサンプルログ（auth.log）での成功・失敗判定それぞれのユーザ名＆IPの出力
@@ -62,5 +64,5 @@ ssh-log-analyzer$ tree
 - 失敗回数が多いIPのTop５を降順で出力
 - 約1万900行のサンプルログファイルでも抽出漏れ等がないように改良
 - Makefileを作成し、ビルドや実行のコマンドを省略できるように改良
-
+- 対応ログ形式を追加（Invalid userログ＆PAMログ）
 

@@ -41,7 +41,41 @@ int parse_log_line(const char *line, LogEntry *entry) {
         if (user_start != NULL) {
             sscanf(user_start + strlen("Accepted password for "), "%63s", entry->user);
         }
-    } else {
+    } else if (strstr(line, "Invalid user ") != NULL) {
+    entry->is_failed = 1;
+
+    const char *user_pos = strstr(line, "Invalid user ");
+    if (user_pos != NULL) {
+        sscanf(user_pos + strlen("Invalid user "), "%63s", entry->user);
+    }
+
+    const char *from_pos = strstr(line, " from ");
+    if (from_pos != NULL) {
+        sscanf(from_pos + 6, "%63s", entry->ip);
+    }
+
+    return 1;
+    } else if (strstr(line, "authentication failure") != NULL) {
+    entry->is_failed = 1;
+
+    char *rhost = strstr(line, "rhost=");
+    if (rhost != NULL) {
+        sscanf(rhost + 6, "%63s", entry->ip);
+    }
+
+    char *user = strstr(line, "user=");
+    if (user != NULL) {
+        sscanf(user + 5, "%63s", entry->user);
+    }
+
+    return 1;
+    }
+
+
+
+
+
+    else {
         return 0;
     }
 
@@ -52,4 +86,5 @@ int parse_log_line(const char *line, LogEntry *entry) {
     }
 
     return 1;
+
 }
