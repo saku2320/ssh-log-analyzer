@@ -22,8 +22,6 @@ int parse_log_line(const char *line, LogEntry *entry) {
     const char *user_start = NULL;
     const char *user_pos = NULL;
     const char *from_pos = NULL;
-    const char *rhost = NULL;
-    const char *user = NULL;
 
     init_log_entry(entry);
 
@@ -63,7 +61,9 @@ int parse_log_line(const char *line, LogEntry *entry) {
             sscanf(from_pos + 6, "%63s", entry->ip);
         }
 
-    } else if (strstr(line, "authentication failure") != NULL) {
+    }else if (strstr(line, "authentication failure") != NULL) {
+        const char *rhost = NULL;
+
         entry->is_failed = 1;
 
         rhost = strstr(line, "rhost=");
@@ -71,13 +71,7 @@ int parse_log_line(const char *line, LogEntry *entry) {
             sscanf(rhost + 6, "%63s", entry->ip);
         }
 
-        user = strstr(line, "user=");
-        if (user != NULL) {
-            /* user= の直後が空なら何も入らない */
-            sscanf(user + 5, "%63s", entry->user);
-        }
-
-    } else {
+    }else {
         return 0;
     }
 
