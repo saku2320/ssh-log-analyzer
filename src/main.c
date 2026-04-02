@@ -39,31 +39,33 @@ int main(int argc, char *argv[]) {
     init_user_stats_list(&users);
 
 
+while (fgets(line, sizeof(line), fp) != NULL) {
+    total_lines++;
 
+    if (parse_log_line(line, &entry)) {
+        parsed_lines++;
+        update_summary(&summary, &entry);
 
-    while (fgets(line, sizeof(line), fp) != NULL) {
-        total_lines++;
-
-        if (parse_log_line(line, &entry)) {
-            parsed_lines++;
-            update_summary(&summary, &entry);
-
-            if (!update_ip_stats(&stats, &entry)) {
-                fprintf(stderr, "Failed to update IP stats: out of memory\n");
-                fclose(fp);
-                free_ip_stats_list(&stats);
-                return 1;
-            }
-        } else if (!update_user_stats(&users, &entry)) {
-	    fprintf(stderr, "Failed to update user stats: out of memory\n");
-	    fclose(fp);
-	    free_ip_stats_list(&stats);
-	    free_user_stats_list(&users);
-	    return 1;
-	}else {
-            ignored_lines++;
+        if (!update_ip_stats(&stats, &entry)) {
+            fprintf(stderr, "Failed to update IP stats: out of memory\n");
+            fclose(fp);
+            free_ip_stats_list(&stats);
+            free_user_stats_list(&users);
+            return 1;
         }
+
+        if (!update_user_stats(&users, &entry)) {
+            fprintf(stderr, "Failed to update user stats: out of memory\n");
+            fclose(fp);
+            free_ip_stats_list(&stats);
+            free_user_stats_list(&users);
+            return 1;
+        }
+    } else {
+        ignored_lines++;
     }
+}
+
 
     fclose(fp);
 
