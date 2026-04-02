@@ -60,7 +60,7 @@ ssh-log-analyzer$ tree
 - `Failed password for ... from ...`
 - `Accepted password for ... from ...`
 - `Invalid user ... from ...`
-- `pam_unix(sshd:auth): authentication failure; ... rhost=... user=...`
+- `pam_unix(sshd:auth): authentication failure; ... rhost=... user=...` (IPのみの取得)
 
 ## 進捗
 - 130行程度のサンプルログ（auth.log）での成功・失敗判定それぞれのユーザ名＆IPの出力
