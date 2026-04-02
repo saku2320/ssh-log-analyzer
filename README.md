@@ -1,11 +1,12 @@
 # SSH Log Analyzer
 
-C言語で作成するSSHログ解析ツール
+SSHログ解析ツール
 
 ## 概要
-auth.logを解析し、不正ログイン試行を検出・可視化するCLIツール
+auth.logを解析し、SSHログイン試行を検出・可視化するCLIツール
 
 実験環境：ubuntu（bash）
+使用言語：C言語
 
 ## 出力内容
 - 総成功回数
@@ -17,7 +18,7 @@ auth.logを解析し、不正ログイン試行を検出・可視化するCLIツ
 
 ## ビルド方法
 ```bash
-make
+make re
 ```
 
 ## 実行方法
@@ -48,7 +49,7 @@ ssh-log-analyzer$ tree
     └── report.h
 ```
 ## 対応ログ形式例
-現時点では以下のようなSSH認証ログを対象としている。今後、より多くの形式に対応させていく。
+現時点では以下のようなSSH認証ログを対象としている。今後、より多くの形式に対応させていく予定。
 - `Failed password for invalid user ... from ...`
 - `Failed password for ... from ...`
 - `Accepted password for ... from ...`
@@ -65,4 +66,3 @@ ssh-log-analyzer$ tree
 - 約1万900行のサンプルログファイルでも抽出漏れ等がないように改良
 - Makefileを作成し、ビルドや実行のコマンドを省略できるように改良
 - 対応ログ形式を追加（Invalid userログ＆PAMログ）
-
