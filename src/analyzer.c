@@ -93,3 +93,70 @@ int update_ip_stats(IpStatsList *list, const LogEntry *entry) {
 
     return 1;
 }
+
+
+
+void init_user_stats_list(UserStatsList *list) {
+    list->items = NULL;
+    list->count = 0;
+    list->capacity = 0;
+}
+
+void free_user_stats_list(UserStatsList *list) {
+    free(list->items);
+    list->items = NULL;
+    list->count = 0;
+    list->capacity = 0;
+}
+
+static int ensure_user_capacity(UserStatsList *list) {
+    UserStats *new_items;
+    size_t new_capacity;
+
+    if (list->count < list->capacity) {
+        return 1;
+    }
+
+    new_capacity = (list->capacity == 0) ? 16 : list->capacity * 2;
+
+    new_items = realloc(list->items, new_capacity * sizeof(UserStats));
+    if (new_items == NULL) {
+        return 0;
+    }
+
+    list->items = new_items;
+    list->capacity = new_capacity;
+    return 1;
+}
+
+int update_user_stats(UserStatsList *list, const LogEntry *entry) {
+    size_t i;
+
+    if (entry->user[0] == '\0') {
+        return 1;
+    }
+
+    for (i = 0; i < list->count; i++) {
+        if (strcmp(list->items[i].user, entry->user) == 0) {
+            if (entry->is_failed) {
+                list->items[i].failed_count++;
+            }
+            if (entry->is_success) {
+                list->items[i].success_count++;
+            }
+            return 1;
+        }
+    }
+
+    if (!ensure_user_capacity(list)) {
+        return 0;
+    }
+
+    strncpy(list->items[list->count].user, entry->user, MAX_USER_LENGTH - 1);
+    list->items[list->count].user[MAX_USER_LENGTH - 1] = '\0';
+    list->items[list->count].failed_count = entry->is_failed ? 1 : 0;
+    list->items[list->count].success_count = entry->is_success ? 1 : 0;
+    list->count++;
+
+    return 1;
+}

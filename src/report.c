@@ -103,3 +103,85 @@ void print_top_failed_ips(const IpStatsList *list, int top_n) {
 
     free(sorted_stats);
 }
+
+
+
+
+
+void print_user_stats(const UserStatsList *list) {
+    size_t i;
+
+    printf("\n===== User Statistics =====\n");
+    for (i = 0; i < list->count; i++) {
+        printf("User: %-15s | Failed: %-3d | Success: %-3d\n",
+               list->items[i].user,
+               list->items[i].failed_count,
+               list->items[i].success_count);
+    }
+}
+
+
+
+
+
+static void copy_user_stats(UserStats *dest, const UserStats *src, size_t count) {
+    size_t i;
+
+    for (i = 0; i < count; i++) {
+        dest[i] = src[i];
+    }
+}
+
+static void sort_user_by_failed_count_desc(UserStats stats[], size_t count) {
+    size_t i;
+    size_t j;
+    UserStats temp;
+
+    for (i = 0; i < count; i++) {
+        for (j = 0; j + 1 < count - i; j++) {
+            if (stats[j].failed_count < stats[j + 1].failed_count) {
+                temp = stats[j];
+                stats[j] = stats[j + 1];
+                stats[j + 1] = temp;
+            }
+        }
+    }
+}
+
+void print_top_targeted_users(const UserStatsList *list, int top_n) {
+    UserStats *sorted_users;
+    size_t i;
+    int rank = 0;
+
+    printf("\n===== Top %d Targeted Users =====\n", top_n);
+
+    if (list->count == 0) {
+        printf("No targeted users found.\n");
+        return;
+    }
+
+    sorted_users = malloc(list->count * sizeof(UserStats));
+    if (sorted_users == NULL) {
+        printf("Failed to allocate memory for user ranking.\n");
+        return;
+    }
+
+    copy_user_stats(sorted_users, list->items, list->count);
+    sort_user_by_failed_count_desc(sorted_users, list->count);
+
+    for (i = 0; i < list->count && rank < top_n; i++) {
+        if (sorted_users[i].failed_count > 0) {
+            rank++;
+            printf("%d. %s (%d failed attempts)\n",
+                   rank,
+                   sorted_users[i].user,
+                   sorted_users[i].failed_count);
+        }
+    }
+
+    if (rank == 0) {
+        printf("No targeted users found.\n");
+    }
+
+    free(sorted_users);
+}

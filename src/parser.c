@@ -20,6 +20,10 @@ static void extract_ip(const char *line, LogEntry *entry) {
 
 int parse_log_line(const char *line, LogEntry *entry) {
     const char *user_start = NULL;
+    const char *user_pos = NULL;
+    const char *from_pos = NULL;
+    const char *rhost = NULL;
+    const char *user = NULL;
 
     init_log_entry(entry);
 
@@ -29,62 +33,57 @@ int parse_log_line(const char *line, LogEntry *entry) {
         if (user_start != NULL) {
             sscanf(user_start + strlen("Failed password for invalid user "), "%63s", entry->user);
         }
+        extract_ip(line, entry);
+
     } else if (strstr(line, "Failed password for ") != NULL) {
         entry->is_failed = 1;
         user_start = strstr(line, "Failed password for ");
         if (user_start != NULL) {
             sscanf(user_start + strlen("Failed password for "), "%63s", entry->user);
         }
+        extract_ip(line, entry);
+
     } else if (strstr(line, "Accepted password for ") != NULL) {
         entry->is_success = 1;
         user_start = strstr(line, "Accepted password for ");
         if (user_start != NULL) {
             sscanf(user_start + strlen("Accepted password for "), "%63s", entry->user);
         }
+        extract_ip(line, entry);
+
     } else if (strstr(line, "Invalid user ") != NULL) {
-    entry->is_failed = 1;
+        entry->is_failed = 1;
+        user_pos = strstr(line, "Invalid user ");
+        if (user_pos != NULL) {
+            sscanf(user_pos + strlen("Invalid user "), "%63s", entry->user);
+        }
 
-    const char *user_pos = strstr(line, "Invalid user ");
-    if (user_pos != NULL) {
-        sscanf(user_pos + strlen("Invalid user "), "%63s", entry->user);
-    }
+        from_pos = strstr(line, " from ");
+        if (from_pos != NULL) {
+            sscanf(from_pos + 6, "%63s", entry->ip);
+        }
 
-    const char *from_pos = strstr(line, " from ");
-    if (from_pos != NULL) {
-        sscanf(from_pos + 6, "%63s", entry->ip);
-    }
-
-    return 1;
     } else if (strstr(line, "authentication failure") != NULL) {
-    entry->is_failed = 1;
+        entry->is_failed = 1;
 
-    char *rhost = strstr(line, "rhost=");
-    if (rhost != NULL) {
-        sscanf(rhost + 6, "%63s", entry->ip);
-    }
+        rhost = strstr(line, "rhost=");
+        if (rhost != NULL) {
+            sscanf(rhost + 6, "%63s", entry->ip);
+        }
 
-    char *user = strstr(line, "user=");
-    if (user != NULL) {
-        sscanf(user + 5, "%63s", entry->user);
-    }
+        user = strstr(line, "user=");
+        if (user != NULL) {
+            /* user= の直後が空なら何も入らない */
+            sscanf(user + 5, "%63s", entry->user);
+        }
 
-    return 1;
-    }
-
-
-
-
-
-    else {
+    } else {
         return 0;
     }
-
-    extract_ip(line, entry);
 
     if (strcmp(entry->user, "root") == 0) {
         entry->is_root = 1;
     }
 
     return 1;
-
 }

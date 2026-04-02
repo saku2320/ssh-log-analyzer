@@ -15,6 +15,8 @@ int main(int argc, char *argv[]) {
     Summary summary;
     IpStatsList stats;
 
+    UserStatsList users;
+
     unsigned long total_lines = 0;
     unsigned long parsed_lines = 0;
     unsigned long ignored_lines = 0;
@@ -30,8 +32,14 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+
     init_summary(&summary);
     init_ip_stats_list(&stats);
+
+    init_user_stats_list(&users);
+
+
+
 
     while (fgets(line, sizeof(line), fp) != NULL) {
         total_lines++;
@@ -46,7 +54,13 @@ int main(int argc, char *argv[]) {
                 free_ip_stats_list(&stats);
                 return 1;
             }
-        } else {
+        } else if (!update_user_stats(&users, &entry)) {
+	    fprintf(stderr, "Failed to update user stats: out of memory\n");
+	    fclose(fp);
+	    free_ip_stats_list(&stats);
+	    free_user_stats_list(&users);
+	    return 1;
+	}else {
             ignored_lines++;
         }
     }
@@ -65,6 +79,12 @@ int main(int argc, char *argv[]) {
     print_suspicious_ips(&stats, ALERT_THRESHOLD);
     print_top_failed_ips(&stats, TOP_N);
 
+    print_user_stats(&users);
+    print_top_targeted_users(&users, TOP_N);
+
     free_ip_stats_list(&stats);
+
+    free_user_stats_list(&users);
+
     return 0;
 }
