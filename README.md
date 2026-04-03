@@ -1,6 +1,4 @@
-# SSH Log Analyzer
-
-SSHログ解析ツール
+# SSHログ解析ツール (CLI)
 
 ## 概要
 auth.logを解析し、SSHログイン試行を検出・可視化するCLIツール
@@ -8,38 +6,10 @@ auth.logを解析し、SSHログイン試行を検出・可視化するCLIツー
 実験環境：ubuntu（bash）<br>
 使用言語：C言語
 
-## 出力内容
-- 総成功回数
-- 総失敗回数
-- 総root試行回数
-- 読み込んだログの行数
-- SSH認証関連の行数
-- 無視された行数
-- 検出されたIPの総数
-- 検出された全IPごとの成功・失敗回数
-- 失敗回数が一定以上の不審IPの抽出とそれぞれの失敗回数（検出順）
-- 失敗回数が多い順にIPのTop5
-- 検出された全ユーザ名ごとの成功・失敗回数
-- 失敗回数が多い順にユーザ名のTop5
-
-## ビルド方法
-```bash
-make re
-```
-
-## 実行方法
-```bash
-make run
-```
-### 直接実行コマンド
-```bash
-gcc -Wall -Wextra -std=c11 -o ssh_log_analyzer src/main.c src/analyzer.c src/parser.c src/report.c
-./ssh_log_analyzer sample_log/auth.log
-```
-
 ## 構成内容
+
 ```
-ssh-log-analyzer$ tree 
+ssh-log-analyzer$ tree
 ├── Makefile
 ├── README.md
 ├──.gitignore
@@ -54,6 +24,29 @@ ssh-log-analyzer$ tree
     ├── report.c
     └── report.h
 ```
+
+## 出力内容
+#### SSHログ分析結果
+- 総成功回数
+- 総失敗回数
+- 総root試行回数
+#### ログ統計
+- 読み込んだログの行数
+- SSH認証関連の行数
+- 無視された行数
+- 検出されたIPの総数
+#### IP統計
+- 検出された全IPごとの成功・失敗回数
+#### 不審IP
+- 失敗回数が一定以上の不審IPの抽出とそれぞれの失敗回数（検出順）
+#### 失敗IP Top5
+- 失敗回数が多い順にIPのTop5
+#### ユーザ統計
+- 検出された全ユーザ名ごとの成功・失敗回数
+#### 失敗ユーザ Top5
+- 失敗回数が多い順にユーザ名のTop5
+
+
 ## 対応ログ形式例
 現時点では以下のようなSSH認証ログを対象としている。今後、より多くの形式に対応させていく予定。
 - `Failed password for invalid user ... from ...`
@@ -75,3 +68,18 @@ ssh-log-analyzer$ tree
 - ログイン試行に使われたユーザ名ごとの成功・失敗回数の出力を追加
 - 失敗回数が多いユーザ名のTop5を降順で出力
 
+
+## ビルド方法
+```bash
+make re
+```
+
+## 実行方法
+```bash
+make run
+```
+### 直接実行コマンド
+```bash
+gcc -Wall -Wextra -std=c11 -o ssh_log_analyzer src/main.c src/analyzer.c src/parser.c src/report.c
+./ssh_log_analyzer sample_log/auth.log
+```
