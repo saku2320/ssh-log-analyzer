@@ -16,7 +16,7 @@ src/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 run: $(TARGET)
-	./$(TARGET) $(LOGFILE)
+	@./$(TARGET) $(LOGFILE)
 
 clean:
 	rm -f $(TARGET) $(OBJS)
