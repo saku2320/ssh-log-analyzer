@@ -89,7 +89,7 @@ make re
 ```bash
 make run
 ```
-### 直接実行コマンド
+#### 直接実行コマンド
 ```bash
 gcc -Wall -Wextra -std=c11 -o ssh_log_analyzer src/main.c src/analyzer.c src/parser.c src/report.c
 ./ssh_log_analyzer sample_log/auth.log
