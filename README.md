@@ -87,7 +87,7 @@ make re
 
 ## 実行方法
 ```bash
-make run THRESHOLD=??
+make run ??
 ```
 
 > ??には不審IPのしきい値として引数を指定 <br>
