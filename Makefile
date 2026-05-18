@@ -7,6 +7,10 @@ OBJS = $(SRCS:.c=.o)
 
 LOGFILE = sample_log/auth.log
 
+ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+THRESHOLD := $(firstword $(ARGS))
+
+
 all: $(TARGET)
 
 $(TARGET): $(OBJS)
@@ -16,10 +20,8 @@ src/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 
-THRESHOLD ?= 5
-
 run: $(TARGET)
-	@./$(TARGET) $(LOGFILE) $(THRESHOLD)
+	@./$(TARGET) $(LOGFILE) $(if $(THRESHOLD),$(THRESHOLD),5)
 
 clean:
 	rm -f $(TARGET) $(OBJS)
