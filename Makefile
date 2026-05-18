@@ -15,8 +15,11 @@ $(TARGET): $(OBJS)
 src/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+
+THRESHOLD ?= 5
+
 run: $(TARGET)
-	@./$(TARGET) $(LOGFILE)
+	@./$(TARGET) $(LOGFILE) $(THRESHOLD)
 
 clean:
 	rm -f $(TARGET) $(OBJS)

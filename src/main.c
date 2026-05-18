@@ -14,16 +14,23 @@ int main(int argc, char *argv[]) {
     LogEntry entry;
     Summary summary;
     IpStatsList stats;
-
+    int alert_threshold;
     UserStatsList users;
 
     unsigned long total_lines = 0;
     unsigned long parsed_lines = 0;
     unsigned long ignored_lines = 0;
 
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <logfile>\n", argv[0]);
+    if (argc != 3) {
+        fprintf(stderr, "Usage: %s <logfile> <threshold>\n", argv[0]);
         return 1;
+    }
+
+    alert_threshold = atoi(argv[2]);
+
+    if (alert_threshold <= 0) {
+	fprintf(stderr,"Threshold must be a positive integer.\n");
+	return 1;
     }
 
     fp = fopen(argv[1], "r");
@@ -78,7 +85,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
     printf("Unique IPs tracked         : %zu\n", stats.count);
 
     print_ip_stats(&stats);
-    print_suspicious_ips(&stats, ALERT_THRESHOLD);
+    print_suspicious_ips(&stats, alert_threshold);
     print_top_failed_ips(&stats, TOP_N);
 
     print_user_stats(&users);
