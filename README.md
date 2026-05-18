@@ -87,8 +87,13 @@ make re
 
 ## 実行方法
 ```bash
-make run
+make run THRESHOLD=??
 ```
+:::note info
+??には不審IPのしきい値として引数を指定
+指定しない場合、自動的に５が入る
+:::
+
 #### 直接実行コマンド
 ```bash
 gcc -Wall -Wextra -std=c11 -o ssh_log_analyzer src/main.c src/analyzer.c src/parser.c src/report.c
