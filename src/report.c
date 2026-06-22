@@ -45,17 +45,10 @@ void print_ip_stats(const IpStatsList *list) {
 
     printf("\n===== IP Statistics =====\n");
     for (i = 0; i < list->count; i++) {
-        if (list->items[i].failed_count > 0) {
-            printf("IP: " COLOR_RED "%-15s" COLOR_RESET " | Failed: " COLOR_RED "%-3d" COLOR_RESET " | Success: " COLOR_GREEN "%-3d" COLOR_RESET "\n",
-                   list->items[i].ip,
-                   list->items[i].failed_count,
-                   list->items[i].success_count);
-        } else {
-            printf("IP: %-15s | Failed: %-3d | Success: " COLOR_GREEN "%-3d" COLOR_RESET "\n",
-                   list->items[i].ip,
-                   list->items[i].failed_count,
-                   list->items[i].success_count);
-        }
+        printf("IP: %-15s | Failed: %-3d | Success: %-3d\n",
+               list->items[i].ip,
+               list->items[i].failed_count,
+               list->items[i].success_count);
     }
 }
 
@@ -63,11 +56,11 @@ void print_suspicious_ips(const IpStatsList *list, int threshold) {
     size_t i;
     int found = 0;
 
-    printf("\n===== Suspicious IPs (failed >= %d) =====\n", threshold);
+    printf("\n" COLOR_BOLD COLOR_RED "===== Suspicious IPs (failed >= %d) =====" COLOR_RESET "\n", threshold);
 
     for (i = 0; i < list->count; i++) {
         if (list->items[i].failed_count >= threshold) {
-            printf(COLOR_BOLD COLOR_RED "- %s (%d failed attempts)" COLOR_RESET "\n",
+            printf("- %s (%d failed attempts)\n",
                    list->items[i].ip,
                    list->items[i].failed_count);
             found = 1;
@@ -84,7 +77,7 @@ void print_top_failed_ips(const IpStatsList *list, int top_n) {
     size_t i;
     int rank = 0;
 
-    printf("\n===== Top %d Failed IPs =====\n", top_n);
+    printf("\n" COLOR_BOLD COLOR_RED "===== Top %d Failed IPs =====" COLOR_RESET "\n", top_n);
 
     if (list->count == 0) {
         printf("No failed login IPs found.\n");
@@ -103,7 +96,7 @@ void print_top_failed_ips(const IpStatsList *list, int top_n) {
     for (i = 0; i < list->count && rank < top_n; i++) {
         if (sorted_stats[i].failed_count > 0) {
             rank++;
-            printf(COLOR_RED "%d. %s (%d failed attempts)" COLOR_RESET "\n",
+            printf("%d. %s (%d failed attempts)\n",
                    rank,
                    sorted_stats[i].ip,
                    sorted_stats[i].failed_count);
@@ -126,17 +119,10 @@ void print_user_stats(const UserStatsList *list) {
 
     printf("\n===== User Statistics =====\n");
     for (i = 0; i < list->count; i++) {
-        if (list->items[i].failed_count > 0) {
-            printf("User: " COLOR_RED "%-15s" COLOR_RESET " | Failed: " COLOR_RED "%-3d" COLOR_RESET " | Success: " COLOR_GREEN "%-3d" COLOR_RESET "\n",
-                   list->items[i].user,
-                   list->items[i].failed_count,
-                   list->items[i].success_count);
-        } else {
-            printf("User: %-15s | Failed: %-3d | Success: " COLOR_GREEN "%-3d" COLOR_RESET "\n",
-                   list->items[i].user,
-                   list->items[i].failed_count,
-                   list->items[i].success_count);
-        }
+        printf("User: %-15s | Failed: %-3d | Success: %-3d\n",
+               list->items[i].user,
+               list->items[i].failed_count,
+               list->items[i].success_count);
     }
 }
 
@@ -173,7 +159,7 @@ void print_top_targeted_users(const UserStatsList *list, int top_n) {
     size_t i;
     int rank = 0;
 
-    printf("\n===== Top %d Targeted Users =====\n", top_n);
+    printf("\n" COLOR_BOLD COLOR_RED "===== Top %d Targeted Users =====" COLOR_RESET "\n", top_n);
 
     if (list->count == 0) {
         printf("No targeted users found.\n");
@@ -192,7 +178,7 @@ void print_top_targeted_users(const UserStatsList *list, int top_n) {
     for (i = 0; i < list->count && rank < top_n; i++) {
         if (sorted_users[i].failed_count > 0) {
             rank++;
-            printf(COLOR_RED "%d. %s (%d failed attempts)" COLOR_RESET "\n",
+            printf("%d. %s (%d failed attempts)\n",
                    rank,
                    sorted_users[i].user,
                    sorted_users[i].failed_count);

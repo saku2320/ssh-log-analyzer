@@ -7,6 +7,10 @@
 #define MAX_LINE_LENGTH 1024
 #define ALERT_THRESHOLD 5
 #define TOP_N 5
+#define COLOR_RED "\033[31m"
+#define COLOR_GREEN "\033[32m"
+#define COLOR_YELLOW "\033[33m"
+#define COLOR_RESET "\033[0m"
 
 int main(int argc, char *argv[]) {
     FILE *fp;
@@ -79,10 +83,10 @@ while (fgets(line, sizeof(line), fp) != NULL) {
     print_summary(&summary);
 
     printf("\n===== Processing Stats =====\n");
-    printf("Total lines read           : %lu\n", total_lines);
-    printf("Parsed SSH auth lines      : %lu\n", parsed_lines);
-    printf("Ignored lines              : %lu\n", ignored_lines);
-    printf("Unique IPs tracked         : %zu\n", stats.count);
+    printf("Total lines read           : " COLOR_GREEN "%lu" COLOR_RESET "\n", total_lines);
+    printf("Parsed SSH auth lines      : " COLOR_GREEN "%lu" COLOR_RESET "\n", parsed_lines);
+    printf("Ignored lines              : " COLOR_YELLOW "%lu" COLOR_RESET "\n", ignored_lines);
+    printf("Unique IPs tracked         : " COLOR_RED "%zu" COLOR_RESET "\n", stats.count);
 
     print_ip_stats(&stats);
     print_suspicious_ips(&stats, alert_threshold);
