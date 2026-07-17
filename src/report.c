@@ -33,6 +33,22 @@ static void sort_by_failed_count_desc(IpStats stats[], size_t count) {
     }
 }
 
+static void sort_by_success_count_desc(IpStats stats[], size_t count) {
+    size_t i;
+    size_t j;
+    IpStats temp;
+
+    for (i = 0; i < count; i++) {
+        for (j = 0; j + 1 < count - i; j++) {
+            if (stats[j].success_count < stats[j + 1].success_count) {
+                temp = stats[j];
+                stats[j] = stats[j + 1];
+                stats[j + 1] = temp;
+            }
+        }
+    }
+}
+
 void print_summary(const Summary *summary) {
     printf("===== SSH Log Analysis Result =====\n");
     printf("Total failed login attempts : " COLOR_RED "%d" COLOR_RESET "\n", summary->total_failed);
@@ -110,6 +126,44 @@ void print_top_failed_ips(const IpStatsList *list, int top_n) {
     free(sorted_stats);
 }
 
+void print_top_successful_ips(const IpStatsList *list, int top_n) {
+    IpStats *sorted_stats;
+    size_t i;
+    int rank = 0;
+
+    printf("\n" COLOR_BOLD COLOR_GREEN "===== Top %d Successful IPs =====" COLOR_RESET "\n", top_n);
+
+    if (list->count == 0) {
+        printf("No successful login IPs found.\n");
+        return;
+    }
+
+    sorted_stats = malloc(list->count * sizeof(IpStats));
+    if (sorted_stats == NULL) {
+        printf("Failed to allocate memory for ranking.\n");
+        return;
+    }
+
+    copy_ip_stats(sorted_stats, list->items, list->count);
+    sort_by_success_count_desc(sorted_stats, list->count);
+
+    for (i = 0; i < list->count && rank < top_n; i++) {
+        if (sorted_stats[i].success_count > 0) {
+            rank++;
+            printf("%d. %s (%d successful logins)\n",
+                   rank,
+                   sorted_stats[i].ip,
+                   sorted_stats[i].success_count);
+        }
+    }
+
+    if (rank == 0) {
+        printf("No successful login IPs found.\n");
+    }
+
+    free(sorted_stats);
+}
+
 
 
 
@@ -154,6 +208,22 @@ static void sort_user_by_failed_count_desc(UserStats stats[], size_t count) {
     }
 }
 
+static void sort_user_by_success_count_desc(UserStats stats[], size_t count) {
+    size_t i;
+    size_t j;
+    UserStats temp;
+
+    for (i = 0; i < count; i++) {
+        for (j = 0; j + 1 < count - i; j++) {
+            if (stats[j].success_count < stats[j + 1].success_count) {
+                temp = stats[j];
+                stats[j] = stats[j + 1];
+                stats[j + 1] = temp;
+            }
+        }
+    }
+}
+
 void print_top_targeted_users(const UserStatsList *list, int top_n) {
     UserStats *sorted_users;
     size_t i;
@@ -187,6 +257,44 @@ void print_top_targeted_users(const UserStatsList *list, int top_n) {
 
     if (rank == 0) {
         printf("No targeted users found.\n");
+    }
+
+    free(sorted_users);
+}
+
+void print_top_successful_users(const UserStatsList *list, int top_n) {
+    UserStats *sorted_users;
+    size_t i;
+    int rank = 0;
+
+    printf("\n" COLOR_BOLD COLOR_GREEN "===== Top %d Successful Users =====" COLOR_RESET "\n", top_n);
+
+    if (list->count == 0) {
+        printf("No successful login users found.\n");
+        return;
+    }
+
+    sorted_users = malloc(list->count * sizeof(UserStats));
+    if (sorted_users == NULL) {
+        printf("Failed to allocate memory for user ranking.\n");
+        return;
+    }
+
+    copy_user_stats(sorted_users, list->items, list->count);
+    sort_user_by_success_count_desc(sorted_users, list->count);
+
+    for (i = 0; i < list->count && rank < top_n; i++) {
+        if (sorted_users[i].success_count > 0) {
+            rank++;
+            printf("%d. %s (%d successful logins)\n",
+                   rank,
+                   sorted_users[i].user,
+                   sorted_users[i].success_count);
+        }
+    }
+
+    if (rank == 0) {
+        printf("No successful login users found.\n");
     }
 
     free(sorted_users);

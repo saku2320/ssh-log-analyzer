@@ -22,14 +22,13 @@ typedef enum {
 
 typedef enum {
     REPORT_NONE,
-    REPORT_FAILED_IP,
-    REPORT_FAILED_USER
+    REPORT_IP,
+    REPORT_USER
 } ReportMode;
 
 static void print_usage(const char *program_name) {
     fprintf(stderr, "Usage: %s <logfile> [threshold] [failed|success|root]\n", program_name);
-    fprintf(stderr, "       %s <logfile> [threshold] [failed ip|failed user]\n", program_name);
-    fprintf(stderr, "       %s <logfile> [threshold] [-filter|--filter all|failed|success|root]\n", program_name);
+    fprintf(stderr, "       %s <logfile> [threshold] [failed|success] [ip|user]\n", program_name);
     fprintf(stderr, "       %s <logfile> [threshold] [failed-only|success-only|root-only]\n", program_name);
 }
 
@@ -82,9 +81,9 @@ static int parse_filter_argument(const char *value, FilterMode *filter_mode) {
 
 static int parse_report_argument(const char *value, ReportMode *report_mode) {
     if (strcmp(value, "ip") == 0 || strcmp(value, "ips") == 0) {
-        *report_mode = REPORT_FAILED_IP;
+        *report_mode = REPORT_IP;
     } else if (strcmp(value, "user") == 0 || strcmp(value, "users") == 0) {
-        *report_mode = REPORT_FAILED_USER;
+        *report_mode = REPORT_USER;
     } else {
         return 0;
     }
@@ -145,14 +144,7 @@ int main(int argc, char *argv[]) {
     alert_threshold = ALERT_THRESHOLD;
 
     for (i = 2; i < argc; i++) {
-        if (strcmp(argv[i], "--filter") == 0 || strcmp(argv[i], "-filter") == 0) {
-            if (i + 1 >= argc || !parse_filter_value(argv[i + 1], &filter_mode)) {
-                fprintf(stderr, "Filter must be one of: all, failed, success, root\n");
-                print_usage(argv[0]);
-                return 1;
-            }
-            i++;
-        } else if (parse_filter_argument(argv[i], &filter_mode)) {
+        if (parse_filter_argument(argv[i], &filter_mode)) {
             continue;
         } else if (parse_report_argument(argv[i], &report_mode)) {
             continue;
@@ -161,6 +153,12 @@ int main(int argc, char *argv[]) {
             print_usage(argv[0]);
             return 1;
         }
+    }
+
+    if (report_mode != REPORT_NONE && filter_mode != FILTER_FAILED && filter_mode != FILTER_SUCCESS) {
+        fprintf(stderr, "Report mode must be used with failed or success.\n");
+        print_usage(argv[0]);
+        return 1;
     }
 
     fp = fopen(argv[1], "r");
@@ -214,7 +212,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
 
     fclose(fp);
 
-    if (report_mode == REPORT_FAILED_IP) {
+    if (report_mode == REPORT_IP && filter_mode == FILTER_FAILED) {
         printf("===== Failed IP Report =====\n");
         printf("Unique IPs tracked         : " COLOR_RED "%zu" COLOR_RESET "\n", stats.count);
         print_suspicious_ips(&stats, alert_threshold);
@@ -224,11 +222,31 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         return 0;
     }
 
-    if (report_mode == REPORT_FAILED_USER) {
+    if (report_mode == REPORT_USER && filter_mode == FILTER_FAILED) {
         printf("===== Failed User Report =====\n");
         printf("Unique users tracked       : " COLOR_RED "%zu" COLOR_RESET "\n", users.count);
         print_user_stats(&users);
         print_top_targeted_users(&users, TOP_N);
+        free_ip_stats_list(&stats);
+        free_user_stats_list(&users);
+        return 0;
+    }
+
+    if (report_mode == REPORT_IP && filter_mode == FILTER_SUCCESS) {
+        printf("===== Success IP Report =====\n");
+        printf("Unique IPs tracked         : " COLOR_GREEN "%zu" COLOR_RESET "\n", stats.count);
+        print_ip_stats(&stats);
+        print_top_successful_ips(&stats, TOP_N);
+        free_ip_stats_list(&stats);
+        free_user_stats_list(&users);
+        return 0;
+    }
+
+    if (report_mode == REPORT_USER && filter_mode == FILTER_SUCCESS) {
+        printf("===== Success User Report =====\n");
+        printf("Unique users tracked       : " COLOR_GREEN "%zu" COLOR_RESET "\n", users.count);
+        print_user_stats(&users);
+        print_top_successful_users(&users, TOP_N);
         free_ip_stats_list(&stats);
         free_user_stats_list(&users);
         return 0;

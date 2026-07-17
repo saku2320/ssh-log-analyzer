@@ -70,7 +70,7 @@ ssh-log-analyzer$ tree
 - 失敗回数が多いユーザ名のTop5を降順で出力
 - 不審IP検出基準をコマンド実行時に引数として自由に変更可に
 - 失敗IP・不審IP・失敗ユーザ名等を色分けして表示できるように改良
-- `--filter failed` や `--failed-only` でSSH失敗ログのみを簡単に出力できるように改良
+- `failed` や `failed-only` でSSH失敗ログのみを簡単に出力できるように改良
 
 ## 目標
 - ブルートフォース攻撃疑いを検出可に
@@ -107,6 +107,8 @@ make run root
 make run failed-only
 make run failed ip
 make run failed user
+make run success ip
+make run success user
 ```
 
 使用できるフィルタ条件
@@ -115,12 +117,12 @@ make run failed user
 - `root` / `root-only` / `--root-only`: rootログイン試行のみ出力
 - `failed ip`: `Unique IPs tracked`、`Suspicious IPs`、`Top 5 Failed IPs`のみ出力
 - `failed user`: `Unique users tracked`、`User Statistics`、`Top 5 Targeted Users`のみ出力
-- `-filter failed` / `--filter failed`: 条件を指定して出力
+- `success ip`: `Unique IPs tracked`、`IP Statistics`、`Top 5 Successful IPs`のみ出力
+- `success user`: `Unique users tracked`、`User Statistics`、`Top 5 Successful Users`のみ出力
 - `all`: フィルタなし
 
 `failed` のような単体フィルタを指定した場合は、条件に一致したログ行と一致件数のみを出力する。
-`failed ip` や `failed user` のように種類を追加した場合は、指定した集計セクションのみを出力する。
-`-filter failed` の形式を `make run` で使う場合は、`make run -- -filter failed` のように `--` を付ける。
+`failed ip` や `success user` のように種類を追加した場合は、指定した集計セクションのみを出力する。
 
 #### 直接実行コマンド
 ```bash
@@ -129,6 +131,7 @@ gcc -Wall -Wextra -std=c11 -o ssh_log_analyzer src/main.c src/analyzer.c src/par
 ./ssh_log_analyzer sample_log/auth.log failed
 ./ssh_log_analyzer sample_log/auth.log failed ip
 ./ssh_log_analyzer sample_log/auth.log failed user
-./ssh_log_analyzer sample_log/auth.log -filter failed
+./ssh_log_analyzer sample_log/auth.log success ip
+./ssh_log_analyzer sample_log/auth.log success user
 ./ssh_log_analyzer sample_log/auth.log --failed-only
 ```
