@@ -20,8 +20,15 @@ typedef enum {
     FILTER_ROOT
 } FilterMode;
 
+typedef enum {
+    REPORT_NONE,
+    REPORT_FAILED_IP,
+    REPORT_FAILED_USER
+} ReportMode;
+
 static void print_usage(const char *program_name) {
     fprintf(stderr, "Usage: %s <logfile> [threshold] [failed|success|root]\n", program_name);
+    fprintf(stderr, "       %s <logfile> [threshold] [failed ip|failed user]\n", program_name);
     fprintf(stderr, "       %s <logfile> [threshold] [-filter|--filter all|failed|success|root]\n", program_name);
     fprintf(stderr, "       %s <logfile> [threshold] [failed-only|success-only|root-only]\n", program_name);
 }
@@ -73,6 +80,18 @@ static int parse_filter_argument(const char *value, FilterMode *filter_mode) {
     return 1;
 }
 
+static int parse_report_argument(const char *value, ReportMode *report_mode) {
+    if (strcmp(value, "ip") == 0 || strcmp(value, "ips") == 0) {
+        *report_mode = REPORT_FAILED_IP;
+    } else if (strcmp(value, "user") == 0 || strcmp(value, "users") == 0) {
+        *report_mode = REPORT_FAILED_USER;
+    } else {
+        return 0;
+    }
+
+    return 1;
+}
+
 static const char *filter_label(FilterMode filter_mode) {
     switch (filter_mode) {
         case FILTER_FAILED:
@@ -110,6 +129,7 @@ int main(int argc, char *argv[]) {
     int alert_threshold;
     UserStatsList users;
     FilterMode filter_mode = FILTER_ALL;
+    ReportMode report_mode = REPORT_NONE;
     unsigned long filtered_lines = 0;
     int i;
 
@@ -134,6 +154,8 @@ int main(int argc, char *argv[]) {
             i++;
         } else if (parse_filter_argument(argv[i], &filter_mode)) {
             continue;
+        } else if (parse_report_argument(argv[i], &report_mode)) {
+            continue;
         } else if (!parse_positive_int(argv[i], &alert_threshold)) {
             fprintf(stderr, "Unknown option or invalid threshold: %s\n", argv[i]);
             print_usage(argv[0]);
@@ -153,7 +175,7 @@ int main(int argc, char *argv[]) {
 
     init_user_stats_list(&users);
 
-    if (filter_mode != FILTER_ALL) {
+    if (filter_mode != FILTER_ALL && report_mode == REPORT_NONE) {
         printf("===== Filtered Log Lines (%s) =====\n", filter_label(filter_mode));
     }
 
@@ -164,7 +186,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         parsed_lines++;
         update_summary(&summary, &entry);
 
-        if (entry_matches_filter(&entry, filter_mode)) {
+        if (report_mode == REPORT_NONE && entry_matches_filter(&entry, filter_mode)) {
             printf("%s", line);
             filtered_lines++;
         }
@@ -191,6 +213,26 @@ while (fgets(line, sizeof(line), fp) != NULL) {
 
 
     fclose(fp);
+
+    if (report_mode == REPORT_FAILED_IP) {
+        printf("===== Failed IP Report =====\n");
+        printf("Unique IPs tracked         : " COLOR_RED "%zu" COLOR_RESET "\n", stats.count);
+        print_suspicious_ips(&stats, alert_threshold);
+        print_top_failed_ips(&stats, TOP_N);
+        free_ip_stats_list(&stats);
+        free_user_stats_list(&users);
+        return 0;
+    }
+
+    if (report_mode == REPORT_FAILED_USER) {
+        printf("===== Failed User Report =====\n");
+        printf("Unique users tracked       : " COLOR_RED "%zu" COLOR_RESET "\n", users.count);
+        print_user_stats(&users);
+        print_top_targeted_users(&users, TOP_N);
+        free_ip_stats_list(&stats);
+        free_user_stats_list(&users);
+        return 0;
+    }
 
     if (filter_mode != FILTER_ALL) {
         printf("Matched filtered lines      : " COLOR_GREEN "%lu" COLOR_RESET "\n", filtered_lines);
