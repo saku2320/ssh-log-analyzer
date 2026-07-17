@@ -21,8 +21,9 @@ typedef enum {
 } FilterMode;
 
 static void print_usage(const char *program_name) {
-    fprintf(stderr, "Usage: %s <logfile> [threshold] [--filter all|failed|success|root]\n", program_name);
-    fprintf(stderr, "       %s <logfile> [threshold] [--failed-only|--success-only|--root-only]\n", program_name);
+    fprintf(stderr, "Usage: %s <logfile> [threshold] [failed|success|root]\n", program_name);
+    fprintf(stderr, "       %s <logfile> [threshold] [-filter|--filter all|failed|success|root]\n", program_name);
+    fprintf(stderr, "       %s <logfile> [threshold] [failed-only|success-only|root-only]\n", program_name);
 }
 
 static int parse_positive_int(const char *value, int *result) {
@@ -46,6 +47,24 @@ static int parse_filter_value(const char *value, FilterMode *filter_mode) {
     } else if (strcmp(value, "success") == 0 || strcmp(value, "ssh-success") == 0) {
         *filter_mode = FILTER_SUCCESS;
     } else if (strcmp(value, "root") == 0) {
+        *filter_mode = FILTER_ROOT;
+    } else {
+        return 0;
+    }
+
+    return 1;
+}
+
+static int parse_filter_argument(const char *value, FilterMode *filter_mode) {
+    if (parse_filter_value(value, filter_mode)) {
+        return 1;
+    }
+
+    if (strcmp(value, "failed-only") == 0 || strcmp(value, "--failed-only") == 0) {
+        *filter_mode = FILTER_FAILED;
+    } else if (strcmp(value, "success-only") == 0 || strcmp(value, "--success-only") == 0) {
+        *filter_mode = FILTER_SUCCESS;
+    } else if (strcmp(value, "root-only") == 0 || strcmp(value, "--root-only") == 0) {
         *filter_mode = FILTER_ROOT;
     } else {
         return 0;
@@ -106,19 +125,15 @@ int main(int argc, char *argv[]) {
     alert_threshold = ALERT_THRESHOLD;
 
     for (i = 2; i < argc; i++) {
-        if (strcmp(argv[i], "--filter") == 0) {
+        if (strcmp(argv[i], "--filter") == 0 || strcmp(argv[i], "-filter") == 0) {
             if (i + 1 >= argc || !parse_filter_value(argv[i + 1], &filter_mode)) {
                 fprintf(stderr, "Filter must be one of: all, failed, success, root\n");
                 print_usage(argv[0]);
                 return 1;
             }
             i++;
-        } else if (strcmp(argv[i], "--failed-only") == 0) {
-            filter_mode = FILTER_FAILED;
-        } else if (strcmp(argv[i], "--success-only") == 0) {
-            filter_mode = FILTER_SUCCESS;
-        } else if (strcmp(argv[i], "--root-only") == 0) {
-            filter_mode = FILTER_ROOT;
+        } else if (parse_filter_argument(argv[i], &filter_mode)) {
+            continue;
         } else if (!parse_positive_int(argv[i], &alert_threshold)) {
             fprintf(stderr, "Unknown option or invalid threshold: %s\n", argv[i]);
             print_usage(argv[0]);

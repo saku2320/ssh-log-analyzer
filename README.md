@@ -92,7 +92,8 @@ make re
 
 ## 実行方法
 ```bash
-make run ARGS="??"
+make run
+make run ??
 ```
 
 > ??には不審IPのしきい値として引数を指定 <br>
@@ -100,23 +101,27 @@ make run ARGS="??"
 
 #### フィルタ実行例
 ```bash
-make run ARGS="--filter failed"
-make run ARGS="--filter success"
-make run ARGS="--filter root"
+make run failed
+make run success
+make run root
+make run failed-only
 ```
 
 使用できるフィルタ条件
-- `failed` / `--failed-only`: SSH失敗ログのみ出力
-- `success` / `--success-only`: SSH成功ログのみ出力
-- `root` / `--root-only`: rootログイン試行のみ出力
+- `failed` / `failed-only` / `--failed-only`: SSH失敗ログのみ出力
+- `success` / `success-only` / `--success-only`: SSH成功ログのみ出力
+- `root` / `root-only` / `--root-only`: rootログイン試行のみ出力
+- `-filter failed` / `--filter failed`: 条件を指定して出力
 - `all`: フィルタなし
 
 フィルタを指定した場合は、条件に一致したログ行と一致件数のみを出力する。
+`-filter failed` の形式を `make run` で使う場合は、`make run -- -filter failed` のように `--` を付ける。
 
 #### 直接実行コマンド
 ```bash
 gcc -Wall -Wextra -std=c11 -o ssh_log_analyzer src/main.c src/analyzer.c src/parser.c src/report.c
 ./ssh_log_analyzer sample_log/auth.log ??
-./ssh_log_analyzer sample_log/auth.log --filter failed
+./ssh_log_analyzer sample_log/auth.log failed
+./ssh_log_analyzer sample_log/auth.log -filter failed
 ./ssh_log_analyzer sample_log/auth.log --failed-only
 ```
