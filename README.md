@@ -70,13 +70,13 @@ ssh-log-analyzer$ tree
 - 失敗回数が多いユーザ名のTop5を降順で出力
 - 不審IP検出基準をコマンド実行時に引数として自由に変更可に
 - 失敗IP・不審IP・失敗ユーザ名等を色分けして表示できるように改良
+- `--filter failed` や `--failed-only` でSSH失敗ログのみを簡単に出力できるように改良
 
 ## 目標
 - ブルートフォース攻撃疑いを検出可に
 - ありえない時間帯（企業であれば業務時間外など）に行われたログの検出
 - 接続元IPから国・地域を特定し、警告を表示
 - sudo やsuコマンドの実行の検知
-- 「SSH失敗のみ出力」等のような検索条件を簡単にフィルタリングできる機能の追加
 
 
 ## パフォーマンス上の注意点
@@ -92,15 +92,31 @@ make re
 
 ## 実行方法
 ```bash
-make run ??
+make run ARGS="??"
 ```
 
 > ??には不審IPのしきい値として引数を指定 <br>
 指定しない場合、自動的に５が入る
 
+#### フィルタ実行例
+```bash
+make run ARGS="--filter failed"
+make run ARGS="--filter success"
+make run ARGS="--filter root"
+```
+
+使用できるフィルタ条件
+- `failed` / `--failed-only`: SSH失敗ログのみ出力
+- `success` / `--success-only`: SSH成功ログのみ出力
+- `root` / `--root-only`: rootログイン試行のみ出力
+- `all`: フィルタなし
+
+フィルタを指定した場合は、条件に一致したログ行と一致件数のみを出力する。
 
 #### 直接実行コマンド
 ```bash
 gcc -Wall -Wextra -std=c11 -o ssh_log_analyzer src/main.c src/analyzer.c src/parser.c src/report.c
 ./ssh_log_analyzer sample_log/auth.log ??
+./ssh_log_analyzer sample_log/auth.log --filter failed
+./ssh_log_analyzer sample_log/auth.log --failed-only
 ```

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "parser.h"
 #include "analyzer.h"
 #include "report.h"
@@ -12,6 +13,75 @@
 #define COLOR_YELLOW "\033[33m"
 #define COLOR_RESET "\033[0m"
 
+typedef enum {
+    FILTER_ALL,
+    FILTER_FAILED,
+    FILTER_SUCCESS,
+    FILTER_ROOT
+} FilterMode;
+
+static void print_usage(const char *program_name) {
+    fprintf(stderr, "Usage: %s <logfile> [threshold] [--filter all|failed|success|root]\n", program_name);
+    fprintf(stderr, "       %s <logfile> [threshold] [--failed-only|--success-only|--root-only]\n", program_name);
+}
+
+static int parse_positive_int(const char *value, int *result) {
+    char *endptr;
+    long parsed;
+
+    parsed = strtol(value, &endptr, 10);
+    if (*value == '\0' || *endptr != '\0' || parsed <= 0) {
+        return 0;
+    }
+
+    *result = (int)parsed;
+    return 1;
+}
+
+static int parse_filter_value(const char *value, FilterMode *filter_mode) {
+    if (strcmp(value, "all") == 0) {
+        *filter_mode = FILTER_ALL;
+    } else if (strcmp(value, "failed") == 0 || strcmp(value, "ssh-failed") == 0) {
+        *filter_mode = FILTER_FAILED;
+    } else if (strcmp(value, "success") == 0 || strcmp(value, "ssh-success") == 0) {
+        *filter_mode = FILTER_SUCCESS;
+    } else if (strcmp(value, "root") == 0) {
+        *filter_mode = FILTER_ROOT;
+    } else {
+        return 0;
+    }
+
+    return 1;
+}
+
+static const char *filter_label(FilterMode filter_mode) {
+    switch (filter_mode) {
+        case FILTER_FAILED:
+            return "SSH failed only";
+        case FILTER_SUCCESS:
+            return "SSH success only";
+        case FILTER_ROOT:
+            return "root attempts only";
+        case FILTER_ALL:
+        default:
+            return "all";
+    }
+}
+
+static int entry_matches_filter(const LogEntry *entry, FilterMode filter_mode) {
+    switch (filter_mode) {
+        case FILTER_FAILED:
+            return entry->is_failed;
+        case FILTER_SUCCESS:
+            return entry->is_success;
+        case FILTER_ROOT:
+            return entry->is_root;
+        case FILTER_ALL:
+        default:
+            return 0;
+    }
+}
+
 int main(int argc, char *argv[]) {
     FILE *fp;
     char line[MAX_LINE_LENGTH];
@@ -20,21 +90,40 @@ int main(int argc, char *argv[]) {
     IpStatsList stats;
     int alert_threshold;
     UserStatsList users;
+    FilterMode filter_mode = FILTER_ALL;
+    unsigned long filtered_lines = 0;
+    int i;
 
     unsigned long total_lines = 0;
     unsigned long parsed_lines = 0;
     unsigned long ignored_lines = 0;
 
-    if (argc != 3) {
-        fprintf(stderr, "Usage: %s <logfile> <threshold>\n", argv[0]);
+    if (argc < 2) {
+        print_usage(argv[0]);
         return 1;
     }
 
-    alert_threshold = atoi(argv[2]);
+    alert_threshold = ALERT_THRESHOLD;
 
-    if (alert_threshold <= 0) {
-	fprintf(stderr,"Threshold must be a positive integer.\n");
-	return 1;
+    for (i = 2; i < argc; i++) {
+        if (strcmp(argv[i], "--filter") == 0) {
+            if (i + 1 >= argc || !parse_filter_value(argv[i + 1], &filter_mode)) {
+                fprintf(stderr, "Filter must be one of: all, failed, success, root\n");
+                print_usage(argv[0]);
+                return 1;
+            }
+            i++;
+        } else if (strcmp(argv[i], "--failed-only") == 0) {
+            filter_mode = FILTER_FAILED;
+        } else if (strcmp(argv[i], "--success-only") == 0) {
+            filter_mode = FILTER_SUCCESS;
+        } else if (strcmp(argv[i], "--root-only") == 0) {
+            filter_mode = FILTER_ROOT;
+        } else if (!parse_positive_int(argv[i], &alert_threshold)) {
+            fprintf(stderr, "Unknown option or invalid threshold: %s\n", argv[i]);
+            print_usage(argv[0]);
+            return 1;
+        }
     }
 
     fp = fopen(argv[1], "r");
@@ -49,6 +138,9 @@ int main(int argc, char *argv[]) {
 
     init_user_stats_list(&users);
 
+    if (filter_mode != FILTER_ALL) {
+        printf("===== Filtered Log Lines (%s) =====\n", filter_label(filter_mode));
+    }
 
 while (fgets(line, sizeof(line), fp) != NULL) {
     total_lines++;
@@ -56,6 +148,11 @@ while (fgets(line, sizeof(line), fp) != NULL) {
     if (parse_log_line(line, &entry)) {
         parsed_lines++;
         update_summary(&summary, &entry);
+
+        if (entry_matches_filter(&entry, filter_mode)) {
+            printf("%s", line);
+            filtered_lines++;
+        }
 
         if (!update_ip_stats(&stats, &entry)) {
             fprintf(stderr, "Failed to update IP stats: out of memory\n");
@@ -79,6 +176,13 @@ while (fgets(line, sizeof(line), fp) != NULL) {
 
 
     fclose(fp);
+
+    if (filter_mode != FILTER_ALL) {
+        printf("Matched filtered lines      : " COLOR_GREEN "%lu" COLOR_RESET "\n", filtered_lines);
+        free_ip_stats_list(&stats);
+        free_user_stats_list(&users);
+        return 0;
+    }
 
     print_summary(&summary);
 
