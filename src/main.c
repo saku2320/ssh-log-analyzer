@@ -29,7 +29,6 @@ typedef enum {
 static void print_usage(const char *program_name) {
     fprintf(stderr, "Usage: %s <logfile> [threshold] [failed|success|root]\n", program_name);
     fprintf(stderr, "       %s <logfile> [threshold] [failed|success] [ip|user]\n", program_name);
-    fprintf(stderr, "       %s <logfile> [threshold] [failed-only|success-only|root-only]\n", program_name);
 }
 
 static int parse_positive_int(const char *value, int *result) {
@@ -62,21 +61,7 @@ static int parse_filter_value(const char *value, FilterMode *filter_mode) {
 }
 
 static int parse_filter_argument(const char *value, FilterMode *filter_mode) {
-    if (parse_filter_value(value, filter_mode)) {
-        return 1;
-    }
-
-    if (strcmp(value, "failed-only") == 0 || strcmp(value, "--failed-only") == 0) {
-        *filter_mode = FILTER_FAILED;
-    } else if (strcmp(value, "success-only") == 0 || strcmp(value, "--success-only") == 0) {
-        *filter_mode = FILTER_SUCCESS;
-    } else if (strcmp(value, "root-only") == 0 || strcmp(value, "--root-only") == 0) {
-        *filter_mode = FILTER_ROOT;
-    } else {
-        return 0;
-    }
-
-    return 1;
+    return parse_filter_value(value, filter_mode);
 }
 
 static int parse_report_argument(const char *value, ReportMode *report_mode) {

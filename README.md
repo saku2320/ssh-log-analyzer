@@ -70,7 +70,7 @@ ssh-log-analyzer$ tree
 - 失敗回数が多いユーザ名のTop5を降順で出力
 - 不審IP検出基準をコマンド実行時に引数として自由に変更可に
 - 失敗IP・不審IP・失敗ユーザ名等を色分けして表示できるように改良
-- `failed` や `failed-only` でSSH失敗ログのみを簡単に出力できるように改良
+- `failed` でSSH失敗ログのみを簡単に出力できるように改良
 
 ## 目標
 - ブルートフォース攻撃疑いを検出可に
@@ -104,7 +104,6 @@ make run ??
 make run failed
 make run success
 make run root
-make run failed-only
 make run failed ip
 make run failed user
 make run success ip
@@ -112,9 +111,9 @@ make run success user
 ```
 
 使用できるフィルタ条件
-- `failed` / `failed-only` / `--failed-only`: SSH失敗ログのみ出力
-- `success` / `success-only` / `--success-only`: SSH成功ログのみ出力
-- `root` / `root-only` / `--root-only`: rootログイン試行のみ出力
+- `failed`: SSH失敗ログのみ出力
+- `success`: SSH成功ログのみ出力
+- `root`: rootログイン試行のみ出力
 - `failed ip`: `Unique IPs tracked`、`Suspicious IPs`、`Top 5 Failed IPs`のみ出力
 - `failed user`: `Unique users tracked`、`User Statistics`、`Top 5 Targeted Users`のみ出力
 - `success ip`: `Unique IPs tracked`、`IP Statistics`、`Top 5 Successful IPs`のみ出力
@@ -133,5 +132,4 @@ gcc -Wall -Wextra -std=c11 -o ssh_log_analyzer src/main.c src/analyzer.c src/par
 ./ssh_log_analyzer sample_log/auth.log failed user
 ./ssh_log_analyzer sample_log/auth.log success ip
 ./ssh_log_analyzer sample_log/auth.log success user
-./ssh_log_analyzer sample_log/auth.log --failed-only
 ```
