@@ -42,10 +42,14 @@ ssh-log-analyzer$ tree
 - 失敗回数が一定以上の不審IPの抽出とそれぞれの失敗回数（検出順）
 #### 失敗IP Top5
 - 失敗回数が多い順にIPのTop5
+#### 成功IP Top5
+- 成功回数が多い順にIPのTop5
 #### ユーザ統計
 - 検出された全ユーザ名ごとの成功・失敗回数
 #### 失敗ユーザ Top5
 - 失敗回数が多い順にユーザ名のTop5
+#### 成功ユーザ Top5
+- 成功回数が多い順にユーザ名のTop5
 
 
 ## 対応ログ形式例
@@ -71,6 +75,9 @@ ssh-log-analyzer$ tree
 - 不審IP検出基準をコマンド実行時に引数として自由に変更可に
 - 失敗IP・不審IP・失敗ユーザ名等を色分けして表示できるように改良
 - `failed` でSSH失敗ログのみを簡単に出力できるように改良
+- `success` でSSH成功ログのみを簡単に出力できるように改良
+- 失敗・成功ログについて、IPまたはユーザに絞った集計レポートを出力できるように改良
+- 成功回数が多いIPとユーザ名のTop5を降順で出力
 
 ## 目標
 - ブルートフォース攻撃疑いを検出可に
@@ -118,10 +125,10 @@ make run success user
 - `failed user`: `Unique users tracked`、`User Statistics`、`Top 5 Targeted Users`のみ出力
 - `success ip`: `Unique IPs tracked`、`IP Statistics`、`Top 5 Successful IPs`のみ出力
 - `success user`: `Unique users tracked`、`User Statistics`、`Top 5 Successful Users`のみ出力
-- `all`: フィルタなし
 
 `failed` のような単体フィルタを指定した場合は、条件に一致したログ行と一致件数のみを出力する。
 `failed ip` や `success user` のように種類を追加した場合は、指定した集計セクションのみを出力する。
+フィルタを指定しない場合は、すべての集計結果を出力する。
 
 #### 直接実行コマンド
 ```bash
