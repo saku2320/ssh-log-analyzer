@@ -45,9 +45,7 @@ static int parse_positive_int(const char *value, int *result) {
 }
 
 static int parse_filter_value(const char *value, FilterMode *filter_mode) {
-    if (strcmp(value, "all") == 0) {
-        *filter_mode = FILTER_ALL;
-    } else if (strcmp(value, "failed") == 0 || strcmp(value, "ssh-failed") == 0) {
+    if (strcmp(value, "failed") == 0 || strcmp(value, "ssh-failed") == 0) {
         *filter_mode = FILTER_FAILED;
     } else if (strcmp(value, "success") == 0 || strcmp(value, "ssh-success") == 0) {
         *filter_mode = FILTER_SUCCESS;
