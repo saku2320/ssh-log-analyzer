@@ -116,6 +116,39 @@ static int entry_matches_filter(const LogEntry *entry, FilterMode filter_mode) {
     }
 }
 
+static const char *display_value(const char *value) {
+    if (value[0] == '\0') {
+        return "(unknown)";
+    }
+
+    return value;
+}
+
+static void print_filtered_entry_detail(const LogEntry *entry, FilterMode filter_mode, const char *line, unsigned long index) {
+    if (filter_mode == FILTER_SUDO) {
+        printf("[%lu] sudo command execution\n", index);
+        printf("  User        : %s\n", display_value(entry->sudo_user));
+        printf("  Target user : %s\n", display_value(entry->sudo_target_user));
+        printf("  TTY         : %s\n", display_value(entry->sudo_tty));
+        printf("  PWD         : %s\n", display_value(entry->sudo_pwd));
+        printf("  Command     : %s\n", display_value(entry->command));
+        printf("  Raw log     : %s", line);
+        return;
+    }
+
+    if (filter_mode == FILTER_SU) {
+        printf("[%lu] su command execution\n", index);
+        printf("  Login user  : %s\n", display_value(entry->su_login_user));
+        printf("  Target user : %s\n", display_value(entry->su_target_user));
+        printf("  TTY         : %s\n", display_value(entry->su_tty));
+        printf("  Command     : not recorded in auth.log\n");
+        printf("  Raw log     : %s", line);
+        return;
+    }
+
+    printf("%s", line);
+}
+
 int main(int argc, char *argv[]) {
     FILE *fp;
     char line[MAX_LINE_LENGTH];
@@ -182,8 +215,8 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         update_summary(&summary, &entry);
 
         if (report_mode == REPORT_NONE && entry_matches_filter(&entry, filter_mode)) {
-            printf("%s", line);
             filtered_lines++;
+            print_filtered_entry_detail(&entry, filter_mode, line, filtered_lines);
         }
 
         if (!update_ip_stats(&stats, &entry)) {

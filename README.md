@@ -33,6 +33,10 @@ ssh-log-analyzer$ tree
 - 総root試行回数
 - sudoコマンド実行回数
 - suコマンド実行回数
+#### sudo/su実行ログ
+- sudo実行ユーザ、切替先ユーザ、TTY、作業ディレクトリ、実行コマンド
+- su切替先ユーザ、ログインユーザ、TTY
+- su後に入力した個別コマンドはauth.logに記録されないため、本ツールでは表示不可
 #### ログ統計
 - 読み込んだログの行数
 - 認証関連の行数
@@ -84,6 +88,8 @@ ssh-log-analyzer$ tree
 - 成功回数が多いIPとユーザ名のTop5を降順で出力
 - `sudo` でsudoコマンド実行ログのみを簡単に出力できるように改良
 - `su` でsuコマンド実行ログのみを簡単に出力できるように改良
+- `sudo` で実行ユーザ・切替先ユーザ・TTY・作業ディレクトリ・実行コマンドを詳細表示できるように改良
+- `su` で切替先ユーザ・ログインユーザ・TTYを詳細表示できるように改良
 
 ## 目標
 - ブルートフォース攻撃疑いを検出可に
@@ -128,8 +134,8 @@ make run success user
 - `failed`: SSH失敗ログのみ出力
 - `success`: SSH成功ログのみ出力
 - `root`: rootログイン試行のみ出力
-- `sudo`: sudoコマンド実行ログのみ出力
-- `su`: suコマンド実行ログのみ出力
+- `sudo`: sudoコマンド実行ログと詳細情報を出力
+- `su`: suコマンド実行ログとauth.logから分かる範囲の詳細情報を出力
 - `failed ip`: `Unique IPs tracked`、`Suspicious IPs`、`Top 5 Failed IPs`のみ出力
 - `failed user`: `Unique users tracked`、`User Statistics`、`Top 5 Targeted Users`のみ出力
 - `success ip`: `Unique IPs tracked`、`IP Statistics`、`Top 5 Successful IPs`のみ出力
@@ -138,6 +144,9 @@ make run success user
 `failed` のような単体フィルタを指定した場合は、条件に一致したログ行と一致件数のみを出力する。
 `failed ip` や `success user` のように種類を追加した場合は、指定した集計セクションのみを出力する。
 フィルタを指定しない場合は、すべての集計結果を出力する。
+
+`sudo` の詳細表示では、auth.logの `COMMAND=` から実行コマンドを出力する。
+`su` の詳細表示では、標準的なauth.logに残る切替先ユーザやTTYは出力できるが、su後のシェル内で入力した個別コマンドはauth.logだけでは取得できない。
 
 #### 直接実行コマンド
 ```bash
