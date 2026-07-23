@@ -8,6 +8,8 @@ typedef struct {
     int total_failed;
     int total_success;
     int root_attempts;
+    int sudo_commands;
+    int su_commands;
 } Summary;
 
 typedef struct {

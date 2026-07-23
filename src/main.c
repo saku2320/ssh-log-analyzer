@@ -17,7 +17,9 @@ typedef enum {
     FILTER_ALL,
     FILTER_FAILED,
     FILTER_SUCCESS,
-    FILTER_ROOT
+    FILTER_ROOT,
+    FILTER_SUDO,
+    FILTER_SU
 } FilterMode;
 
 typedef enum {
@@ -27,7 +29,7 @@ typedef enum {
 } ReportMode;
 
 static void print_usage(const char *program_name) {
-    fprintf(stderr, "Usage: %s <logfile> [threshold] [failed|success|root]\n", program_name);
+    fprintf(stderr, "Usage: %s <logfile> [threshold] [failed|success|root|sudo|su]\n", program_name);
     fprintf(stderr, "       %s <logfile> [threshold] [failed|success] [ip|user]\n", program_name);
 }
 
@@ -51,6 +53,10 @@ static int parse_filter_value(const char *value, FilterMode *filter_mode) {
         *filter_mode = FILTER_SUCCESS;
     } else if (strcmp(value, "root") == 0) {
         *filter_mode = FILTER_ROOT;
+    } else if (strcmp(value, "sudo") == 0) {
+        *filter_mode = FILTER_SUDO;
+    } else if (strcmp(value, "su") == 0) {
+        *filter_mode = FILTER_SU;
     } else {
         return 0;
     }
@@ -82,6 +88,10 @@ static const char *filter_label(FilterMode filter_mode) {
             return "SSH success only";
         case FILTER_ROOT:
             return "root attempts only";
+        case FILTER_SUDO:
+            return "sudo command executions only";
+        case FILTER_SU:
+            return "su command executions only";
         case FILTER_ALL:
         default:
             return "all";
@@ -96,6 +106,10 @@ static int entry_matches_filter(const LogEntry *entry, FilterMode filter_mode) {
             return entry->is_success;
         case FILTER_ROOT:
             return entry->is_root;
+        case FILTER_SUDO:
+            return entry->is_sudo;
+        case FILTER_SU:
+            return entry->is_su;
         case FILTER_ALL:
         default:
             return 0;
@@ -246,7 +260,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
 
     printf("\n===== Processing Stats =====\n");
     printf("Total lines read           : " COLOR_GREEN "%lu" COLOR_RESET "\n", total_lines);
-    printf("Parsed SSH auth lines      : " COLOR_GREEN "%lu" COLOR_RESET "\n", parsed_lines);
+    printf("Parsed auth lines          : " COLOR_GREEN "%lu" COLOR_RESET "\n", parsed_lines);
     printf("Ignored lines              : " COLOR_YELLOW "%lu" COLOR_RESET "\n", ignored_lines);
     printf("Unique IPs tracked         : " COLOR_RED "%zu" COLOR_RESET "\n", stats.count);
 

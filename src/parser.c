@@ -6,6 +6,8 @@ static void init_log_entry(LogEntry *entry) {
     entry->is_failed = 0;
     entry->is_success = 0;
     entry->is_root = 0;
+    entry->is_sudo = 0;
+    entry->is_su = 0;
     entry->ip[0] = '\0';
     entry->user[0] = '\0';
 }
@@ -25,7 +27,15 @@ int parse_log_line(const char *line, LogEntry *entry) {
 
     init_log_entry(entry);
 
-    if (strstr(line, "Failed password for invalid user ") != NULL) {
+    if (strstr(line, " sudo:") != NULL && strstr(line, "COMMAND=") != NULL) {
+        entry->is_sudo = 1;
+
+    } else if (strstr(line, " su:") != NULL &&
+               strstr(line, "(to ") != NULL &&
+               strstr(line, "pam_unix(") == NULL) {
+        entry->is_su = 1;
+
+    } else if (strstr(line, "Failed password for invalid user ") != NULL) {
         entry->is_failed = 1;
         user_start = strstr(line, "Failed password for invalid user ");
         if (user_start != NULL) {

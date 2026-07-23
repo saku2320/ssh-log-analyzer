@@ -54,6 +54,8 @@ void print_summary(const Summary *summary) {
     printf("Total failed login attempts : " COLOR_RED "%d" COLOR_RESET "\n", summary->total_failed);
     printf("Total successful logins     : " COLOR_GREEN "%d" COLOR_RESET "\n", summary->total_success);
     printf("Root login attempts         : " COLOR_YELLOW "%d" COLOR_RESET "\n", summary->root_attempts);
+    printf("sudo command executions     : " COLOR_YELLOW "%d" COLOR_RESET "\n", summary->sudo_commands);
+    printf("su command executions       : " COLOR_YELLOW "%d" COLOR_RESET "\n", summary->su_commands);
 }
 
 void print_ip_stats(const IpStatsList *list) {

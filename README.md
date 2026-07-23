@@ -1,7 +1,7 @@
 ## SSHログ解析ツール（CLI）
 
 ## 概要
-auth.logを解析し、SSHログイン試行を検出・可視化するCLIツール
+auth.logを解析し、SSHログイン試行やsudo/suコマンド実行を検出・可視化するCLIツール
 
 開発環境：ubuntu(bash) or Fedora Asahi Linux <br>
 実験環境：ubuntu（bash）<br>
@@ -31,9 +31,11 @@ ssh-log-analyzer$ tree
 - 総成功回数
 - 総失敗回数
 - 総root試行回数
+- sudoコマンド実行回数
+- suコマンド実行回数
 #### ログ統計
 - 読み込んだログの行数
-- SSH認証関連の行数
+- 認証関連の行数
 - 無視された行数
 - 検出されたIPの総数
 #### IP統計
@@ -53,12 +55,14 @@ ssh-log-analyzer$ tree
 
 
 ## 対応ログ形式例
-現時点では以下のようなSSH認証ログを対象としている。今後、より多くの形式に対応させていく予定。
+現時点では以下のような認証ログを対象としている。今後、より多くの形式に対応させていく予定。
 - `Failed password for invalid user ... from ...`
 - `Failed password for ... from ...`
 - `Accepted password for ... from ...`
 - `Invalid user ... from ...`
 - `pam_unix(sshd:auth): authentication failure; ... rhost=... user=...` (IPのみの取得)
+- `sudo: ... COMMAND=...`
+- `su: (to ...) ...`
 
 ## 進捗
 - 130行程度のサンプルログ（auth.log）での成功・失敗判定それぞれのユーザ名＆IPの出力
@@ -78,12 +82,13 @@ ssh-log-analyzer$ tree
 - `success` でSSH成功ログのみを簡単に出力できるように改良
 - 失敗・成功ログについて、IPまたはユーザに絞った集計レポートを出力できるように改良
 - 成功回数が多いIPとユーザ名のTop5を降順で出力
+- `sudo` でsudoコマンド実行ログのみを簡単に出力できるように改良
+- `su` でsuコマンド実行ログのみを簡単に出力できるように改良
 
 ## 目標
 - ブルートフォース攻撃疑いを検出可に
 - ありえない時間帯（企業であれば業務時間外など）に行われたログの検出
 - 接続元IPから国・地域を特定し、警告を表示
-- sudo やsuコマンドの実行の検知
 
 
 ## パフォーマンス上の注意点
@@ -111,6 +116,8 @@ make run ??
 make run failed
 make run success
 make run root
+make run sudo
+make run su
 make run failed ip
 make run failed user
 make run success ip
@@ -121,6 +128,8 @@ make run success user
 - `failed`: SSH失敗ログのみ出力
 - `success`: SSH成功ログのみ出力
 - `root`: rootログイン試行のみ出力
+- `sudo`: sudoコマンド実行ログのみ出力
+- `su`: suコマンド実行ログのみ出力
 - `failed ip`: `Unique IPs tracked`、`Suspicious IPs`、`Top 5 Failed IPs`のみ出力
 - `failed user`: `Unique users tracked`、`User Statistics`、`Top 5 Targeted Users`のみ出力
 - `success ip`: `Unique IPs tracked`、`IP Statistics`、`Top 5 Successful IPs`のみ出力
@@ -135,6 +144,8 @@ make run success user
 gcc -Wall -Wextra -std=c11 -o ssh_log_analyzer src/main.c src/analyzer.c src/parser.c src/report.c
 ./ssh_log_analyzer sample_log/auth.log ??
 ./ssh_log_analyzer sample_log/auth.log failed
+./ssh_log_analyzer sample_log/auth.log sudo
+./ssh_log_analyzer sample_log/auth.log su
 ./ssh_log_analyzer sample_log/auth.log failed ip
 ./ssh_log_analyzer sample_log/auth.log failed user
 ./ssh_log_analyzer sample_log/auth.log success ip

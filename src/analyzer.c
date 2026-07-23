@@ -9,6 +9,8 @@ void init_summary(Summary *summary) {
     summary->total_failed = 0;
     summary->total_success = 0;
     summary->root_attempts = 0;
+    summary->sudo_commands = 0;
+    summary->su_commands = 0;
 }
 
 void init_ip_stats_list(IpStatsList *list) {
@@ -59,6 +61,14 @@ void update_summary(Summary *summary, const LogEntry *entry) {
 
     if (entry->is_root) {
         summary->root_attempts++;
+    }
+
+    if (entry->is_sudo) {
+        summary->sudo_commands++;
+    }
+
+    if (entry->is_su) {
+        summary->su_commands++;
     }
 }
 

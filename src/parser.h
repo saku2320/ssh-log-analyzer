@@ -8,6 +8,8 @@ typedef struct {
     int is_failed;
     int is_success;
     int is_root;
+    int is_sudo;
+    int is_su;
     char ip[MAX_IP_LENGTH];
     char user[MAX_USER_LENGTH];
 } LogEntry;
