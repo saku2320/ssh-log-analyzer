@@ -124,6 +124,18 @@ static const char *display_value(const char *value) {
     return value;
 }
 
+static int entry_has_geo(const LogEntry *entry) {
+    return entry->country[0] != '\0' || entry->region[0] != '\0';
+}
+
+static void print_entry_geo_detail(const LogEntry *entry) {
+    if (entry_has_geo(entry)) {
+        printf("  Geo warning : country=%s, region=%s\n",
+               display_value(entry->country),
+               display_value(entry->region));
+    }
+}
+
 static void print_filtered_entry_detail(const LogEntry *entry, FilterMode filter_mode, const char *line, unsigned long index) {
     if (filter_mode == FILTER_SUDO) {
         printf("[%lu] sudo command execution\n", index);
@@ -132,6 +144,7 @@ static void print_filtered_entry_detail(const LogEntry *entry, FilterMode filter
         printf("  TTY         : %s\n", display_value(entry->sudo_tty));
         printf("  PWD         : %s\n", display_value(entry->sudo_pwd));
         printf("  Command     : %s\n", display_value(entry->command));
+        print_entry_geo_detail(entry);
         printf("  Raw log     : %s", line);
         return;
     }
@@ -142,11 +155,13 @@ static void print_filtered_entry_detail(const LogEntry *entry, FilterMode filter
         printf("  Target user : %s\n", display_value(entry->su_target_user));
         printf("  TTY         : %s\n", display_value(entry->su_tty));
         printf("  Command     : not recorded in auth.log\n");
+        print_entry_geo_detail(entry);
         printf("  Raw log     : %s", line);
         return;
     }
 
     printf("%s", line);
+    print_entry_geo_detail(entry);
 }
 
 int main(int argc, char *argv[]) {
@@ -246,6 +261,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         printf("===== Failed IP Report =====\n");
         printf("Unique IPs tracked         : " COLOR_RED "%zu" COLOR_RESET "\n", stats.count);
         print_suspicious_ips(&stats, alert_threshold);
+        print_geo_warnings(&stats);
         print_top_failed_ips(&stats, TOP_N);
         free_ip_stats_list(&stats);
         free_user_stats_list(&users);
@@ -256,6 +272,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         printf("===== Failed User Report =====\n");
         printf("Unique users tracked       : " COLOR_RED "%zu" COLOR_RESET "\n", users.count);
         print_user_stats(&users);
+        print_geo_warnings(&stats);
         print_top_targeted_users(&users, TOP_N);
         free_ip_stats_list(&stats);
         free_user_stats_list(&users);
@@ -266,6 +283,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         printf("===== Success IP Report =====\n");
         printf("Unique IPs tracked         : " COLOR_GREEN "%zu" COLOR_RESET "\n", stats.count);
         print_ip_stats(&stats);
+        print_geo_warnings(&stats);
         print_top_successful_ips(&stats, TOP_N);
         free_ip_stats_list(&stats);
         free_user_stats_list(&users);
@@ -276,6 +294,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         printf("===== Success User Report =====\n");
         printf("Unique users tracked       : " COLOR_GREEN "%zu" COLOR_RESET "\n", users.count);
         print_user_stats(&users);
+        print_geo_warnings(&stats);
         print_top_successful_users(&users, TOP_N);
         free_ip_stats_list(&stats);
         free_user_stats_list(&users);
@@ -299,7 +318,9 @@ while (fgets(line, sizeof(line), fp) != NULL) {
 
     print_ip_stats(&stats);
     print_suspicious_ips(&stats, alert_threshold);
+    print_geo_warnings(&stats);
     print_top_failed_ips(&stats, TOP_N);
+    print_top_successful_ips(&stats, TOP_N);
 
     print_user_stats(&users);
     print_top_targeted_users(&users, TOP_N);

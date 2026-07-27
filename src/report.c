@@ -49,6 +49,18 @@ static void sort_by_success_count_desc(IpStats stats[], size_t count) {
     }
 }
 
+static const char *geo_display_value(const char *value) {
+    if (value[0] == '\0') {
+        return "(not recorded)";
+    }
+
+    return value;
+}
+
+static int has_geo(const IpStats *stats) {
+    return stats->country[0] != '\0' || stats->region[0] != '\0';
+}
+
 void print_summary(const Summary *summary) {
     printf("===== SSH Log Analysis Result =====\n");
     printf("Total failed login attempts : " COLOR_RED "%d" COLOR_RESET "\n", summary->total_failed);
@@ -63,10 +75,33 @@ void print_ip_stats(const IpStatsList *list) {
 
     printf("\n===== IP Statistics =====\n");
     for (i = 0; i < list->count; i++) {
-        printf("IP: %-15s | Failed: %-3d | Success: %-3d\n",
+        printf("IP: %-15s | Country: %-15s | Region: %-15s | Failed: %-3d | Success: %-3d\n",
                list->items[i].ip,
+               geo_display_value(list->items[i].country),
+               geo_display_value(list->items[i].region),
                list->items[i].failed_count,
                list->items[i].success_count);
+    }
+}
+
+void print_geo_warnings(const IpStatsList *list) {
+    size_t i;
+    int found = 0;
+
+    printf("\n" COLOR_BOLD COLOR_YELLOW "===== Geo Location Warnings =====" COLOR_RESET "\n");
+
+    for (i = 0; i < list->count; i++) {
+        if (has_geo(&list->items[i])) {
+            printf("- %s: country=%s, region=%s\n",
+                   list->items[i].ip,
+                   geo_display_value(list->items[i].country),
+                   geo_display_value(list->items[i].region));
+            found = 1;
+        }
+    }
+
+    if (!found) {
+        printf("No country/region information recorded in log.\n");
     }
 }
 
@@ -78,9 +113,11 @@ void print_suspicious_ips(const IpStatsList *list, int threshold) {
 
     for (i = 0; i < list->count; i++) {
         if (list->items[i].failed_count >= threshold) {
-            printf("- %s (%d failed attempts)\n",
+            printf("- %s (%d failed attempts, country=%s, region=%s)\n",
                    list->items[i].ip,
-                   list->items[i].failed_count);
+                   list->items[i].failed_count,
+                   geo_display_value(list->items[i].country),
+                   geo_display_value(list->items[i].region));
             found = 1;
         }
     }
@@ -114,10 +151,12 @@ void print_top_failed_ips(const IpStatsList *list, int top_n) {
     for (i = 0; i < list->count && rank < top_n; i++) {
         if (sorted_stats[i].failed_count > 0) {
             rank++;
-            printf("%d. %s (%d failed attempts)\n",
+            printf("%d. %s (%d failed attempts, country=%s, region=%s)\n",
                    rank,
                    sorted_stats[i].ip,
-                   sorted_stats[i].failed_count);
+                   sorted_stats[i].failed_count,
+                   geo_display_value(sorted_stats[i].country),
+                   geo_display_value(sorted_stats[i].region));
         }
     }
 
@@ -152,10 +191,12 @@ void print_top_successful_ips(const IpStatsList *list, int top_n) {
     for (i = 0; i < list->count && rank < top_n; i++) {
         if (sorted_stats[i].success_count > 0) {
             rank++;
-            printf("%d. %s (%d successful logins)\n",
+            printf("%d. %s (%d successful logins, country=%s, region=%s)\n",
                    rank,
                    sorted_stats[i].ip,
-                   sorted_stats[i].success_count);
+                   sorted_stats[i].success_count,
+                   geo_display_value(sorted_stats[i].country),
+                   geo_display_value(sorted_stats[i].region));
         }
     }
 

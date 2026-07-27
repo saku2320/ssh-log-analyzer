@@ -87,6 +87,14 @@ int update_ip_stats(IpStatsList *list, const LogEntry *entry) {
             if (entry->is_success) {
                 list->items[i].success_count++;
             }
+            if (list->items[i].country[0] == '\0' && entry->country[0] != '\0') {
+                strncpy(list->items[i].country, entry->country, MAX_GEO_LENGTH - 1);
+                list->items[i].country[MAX_GEO_LENGTH - 1] = '\0';
+            }
+            if (list->items[i].region[0] == '\0' && entry->region[0] != '\0') {
+                strncpy(list->items[i].region, entry->region, MAX_GEO_LENGTH - 1);
+                list->items[i].region[MAX_GEO_LENGTH - 1] = '\0';
+            }
             return 1;
         }
     }
@@ -97,6 +105,10 @@ int update_ip_stats(IpStatsList *list, const LogEntry *entry) {
 
     strncpy(list->items[list->count].ip, entry->ip, MAX_IP_LENGTH - 1);
     list->items[list->count].ip[MAX_IP_LENGTH - 1] = '\0';
+    strncpy(list->items[list->count].country, entry->country, MAX_GEO_LENGTH - 1);
+    list->items[list->count].country[MAX_GEO_LENGTH - 1] = '\0';
+    strncpy(list->items[list->count].region, entry->region, MAX_GEO_LENGTH - 1);
+    list->items[list->count].region[MAX_GEO_LENGTH - 1] = '\0';
     list->items[list->count].failed_count = entry->is_failed ? 1 : 0;
     list->items[list->count].success_count = entry->is_success ? 1 : 0;
     list->count++;

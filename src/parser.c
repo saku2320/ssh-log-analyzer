@@ -10,6 +10,8 @@ static void init_log_entry(LogEntry *entry) {
     entry->is_sudo = 0;
     entry->is_su = 0;
     entry->ip[0] = '\0';
+    entry->country[0] = '\0';
+    entry->region[0] = '\0';
     entry->user[0] = '\0';
     entry->sudo_user[0] = '\0';
     entry->sudo_target_user[0] = '\0';
@@ -72,6 +74,69 @@ static void extract_value_after_key(const char *line, const char *key, char *des
     }
 
     rstrip_copy(dest, dest_size, start, end);
+}
+
+static int is_value_separator(char value) {
+    return value == ';' || value == ',' || value == '\n' || value == '\r';
+}
+
+static int extract_geo_value(const char *line, const char *key, char *dest, size_t dest_size) {
+    const char *start;
+    const char *end;
+    char quote;
+
+    start = strstr(line, key);
+    if (start == NULL) {
+        return 0;
+    }
+
+    start += strlen(key);
+    start = skip_spaces(start);
+
+    quote = '\0';
+    if (*start == '"' || *start == '\'') {
+        quote = *start;
+        start++;
+    }
+
+    end = start;
+    while (*end != '\0') {
+        if (quote != '\0') {
+            if (*end == quote) {
+                break;
+            }
+        } else if (is_value_separator(*end) || isspace((unsigned char)*end)) {
+            break;
+        }
+        end++;
+    }
+
+    if (end == start) {
+        return 0;
+    }
+
+    rstrip_copy(dest, dest_size, start, end);
+    return 1;
+}
+
+static void extract_geo_details(const char *line, LogEntry *entry) {
+    if (!extract_geo_value(line, "country=", entry->country, sizeof(entry->country)) &&
+        !extract_geo_value(line, "country:", entry->country, sizeof(entry->country)) &&
+        !extract_geo_value(line, "geoip_country=", entry->country, sizeof(entry->country)) &&
+        !extract_geo_value(line, "country_name=", entry->country, sizeof(entry->country)) &&
+        !extract_geo_value(line, "src_country=", entry->country, sizeof(entry->country)) &&
+        !extract_geo_value(line, "source_country=", entry->country, sizeof(entry->country))) {
+        entry->country[0] = '\0';
+    }
+
+    if (!extract_geo_value(line, "region=", entry->region, sizeof(entry->region)) &&
+        !extract_geo_value(line, "region:", entry->region, sizeof(entry->region)) &&
+        !extract_geo_value(line, "geoip_region=", entry->region, sizeof(entry->region)) &&
+        !extract_geo_value(line, "region_name=", entry->region, sizeof(entry->region)) &&
+        !extract_geo_value(line, "src_region=", entry->region, sizeof(entry->region)) &&
+        !extract_geo_value(line, "source_region=", entry->region, sizeof(entry->region))) {
+        entry->region[0] = '\0';
+    }
 }
 
 static void extract_sudo_details(const char *line, LogEntry *entry) {
@@ -196,6 +261,8 @@ int parse_log_line(const char *line, LogEntry *entry) {
     if (strcmp(entry->user, "root") == 0) {
         entry->is_root = 1;
     }
+
+    extract_geo_details(line, entry);
 
     return 1;
 }

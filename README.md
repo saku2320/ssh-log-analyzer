@@ -43,9 +43,11 @@ ssh-log-analyzer$ tree
 - 無視された行数
 - 検出されたIPの総数
 #### IP統計
-- 検出された全IPごとの成功・失敗回数
+- 検出された全IPごとの国・地域、成功・失敗回数（国・地域はログに記録がある場合のみ）
+#### 国・地域警告
+- 接続元IPに紐づく国・地域情報がログに記録されている場合、そのIPと国・地域を警告表示
 #### 不審IP
-- 失敗回数が一定以上の不審IPの抽出とそれぞれの失敗回数（検出順）
+- 失敗回数が一定以上の不審IPの抽出とそれぞれの国・地域、失敗回数（検出順）
 #### 失敗IP Top5
 - 失敗回数が多い順にIPのTop5
 #### 成功IP Top5
@@ -67,6 +69,7 @@ ssh-log-analyzer$ tree
 - `pam_unix(sshd:auth): authentication failure; ... rhost=... user=...` (IPのみの取得)
 - `sudo: ... COMMAND=...`
 - `su: (to ...) ...`
+- `country=...` / `region=...` などの国・地域情報を含むログ（ログ内に情報がある場合のみ表示）
 
 ## 進捗
 - 130行程度のサンプルログ（auth.log）での成功・失敗判定それぞれのユーザ名＆IPの出力
@@ -90,11 +93,12 @@ ssh-log-analyzer$ tree
 - `su` でsuコマンド実行ログのみを簡単に出力できるように改良
 - `sudo` で実行ユーザ・切替先ユーザ・TTY・作業ディレクトリ・実行コマンドを詳細表示できるように改良
 - `su` で切替先ユーザ・ログインユーザ・TTYを詳細表示できるように改良
+- ログに国・地域情報が含まれる場合、接続元IPごとの国・地域表示と警告表示を追加
 
 ## 目標
 - ブルートフォース攻撃疑いを検出可に
 - ありえない時間帯（企業であれば業務時間外など）に行われたログの検出
-- 接続元IPから国・地域を特定し、警告を表示
+- 接続元IPから国・地域を特定し、警告を表示（ログに記録済みの国・地域情報に対応済み）
 
 
 ## パフォーマンス上の注意点
@@ -136,14 +140,17 @@ make run success user
 - `root`: rootログイン試行のみ出力
 - `sudo`: sudoコマンド実行ログと詳細情報を出力
 - `su`: suコマンド実行ログとauth.logから分かる範囲の詳細情報を出力
-- `failed ip`: `Unique IPs tracked`、`Suspicious IPs`、`Top 5 Failed IPs`のみ出力
-- `failed user`: `Unique users tracked`、`User Statistics`、`Top 5 Targeted Users`のみ出力
-- `success ip`: `Unique IPs tracked`、`IP Statistics`、`Top 5 Successful IPs`のみ出力
-- `success user`: `Unique users tracked`、`User Statistics`、`Top 5 Successful Users`のみ出力
+- `failed ip`: `Unique IPs tracked`、`Suspicious IPs`、`Geo Location Warnings`、`Top 5 Failed IPs`を出力
+- `failed user`: `Unique users tracked`、`User Statistics`、`Geo Location Warnings`、`Top 5 Targeted Users`を出力
+- `success ip`: `Unique IPs tracked`、`IP Statistics`、`Geo Location Warnings`、`Top 5 Successful IPs`を出力
+- `success user`: `Unique users tracked`、`User Statistics`、`Geo Location Warnings`、`Top 5 Successful Users`を出力
 
 `failed` のような単体フィルタを指定した場合は、条件に一致したログ行と一致件数のみを出力する。
 `failed ip` や `success user` のように種類を追加した場合は、指定した集計セクションのみを出力する。
 フィルタを指定しない場合は、すべての集計結果を出力する。
+
+ログ行に `country=JP`、`region=Tokyo`、`geoip_country=Japan`、`geoip_region=Tokyo` などの国・地域情報が含まれる場合は、既存の各実行コマンドの出力に国・地域項目と警告が追加される。
+ログに国・地域情報がない場合は、IP統計では `(not recorded)` と表示し、警告欄では未記録として表示する。
 
 `sudo` の詳細表示では、auth.logの `COMMAND=` から実行コマンドを出力する。
 `su` の詳細表示では、標準的なauth.logに残る切替先ユーザやTTYは出力できるが、su後のシェル内で入力した個別コマンドはauth.logだけでは取得できない。

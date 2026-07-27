@@ -14,6 +14,8 @@ typedef struct {
 
 typedef struct {
     char ip[MAX_IP_LENGTH];
+    char country[MAX_GEO_LENGTH];
+    char region[MAX_GEO_LENGTH];
     int failed_count;
     int success_count;
 } IpStats;

@@ -6,6 +6,7 @@
 #define MAX_COMMAND_LENGTH 256
 #define MAX_PATH_LENGTH 256
 #define MAX_TTY_LENGTH 64
+#define MAX_GEO_LENGTH 64
 
 typedef struct {
     int is_failed;
@@ -14,6 +15,8 @@ typedef struct {
     int is_sudo;
     int is_su;
     char ip[MAX_IP_LENGTH];
+    char country[MAX_GEO_LENGTH];
+    char region[MAX_GEO_LENGTH];
     char user[MAX_USER_LENGTH];
     char sudo_user[MAX_USER_LENGTH];
     char sudo_target_user[MAX_USER_LENGTH];
