@@ -204,6 +204,59 @@ int update_failure_events(FailureEventList *list, const LogEntry *entry) {
     return 1;
 }
 
+void init_success_event_list(SuccessEventList *list) {
+    list->items = NULL;
+    list->count = 0;
+    list->capacity = 0;
+}
+
+void free_success_event_list(SuccessEventList *list) {
+    free(list->items);
+    list->items = NULL;
+    list->count = 0;
+    list->capacity = 0;
+}
+
+static int ensure_success_event_capacity(SuccessEventList *list) {
+    SuccessEvent *new_items;
+    size_t new_capacity;
+
+    if (list->count < list->capacity) {
+        return 1;
+    }
+
+    new_capacity = (list->capacity == 0) ? 32 : list->capacity * 2;
+    new_items = realloc(list->items, new_capacity * sizeof(SuccessEvent));
+    if (new_items == NULL) {
+        return 0;
+    }
+
+    list->items = new_items;
+    list->capacity = new_capacity;
+    return 1;
+}
+
+int update_success_events(SuccessEventList *list, const LogEntry *entry) {
+    if (!entry->is_success || entry->ip[0] == '\0' || entry->user[0] == '\0' || !entry->has_timestamp) {
+        return 1;
+    }
+
+    if (!ensure_success_event_capacity(list)) {
+        return 0;
+    }
+
+    strncpy(list->items[list->count].ip, entry->ip, MAX_IP_LENGTH - 1);
+    list->items[list->count].ip[MAX_IP_LENGTH - 1] = '\0';
+    strncpy(list->items[list->count].user, entry->user, MAX_USER_LENGTH - 1);
+    list->items[list->count].user[MAX_USER_LENGTH - 1] = '\0';
+    strncpy(list->items[list->count].timestamp_text, entry->timestamp_text, MAX_TIMESTAMP_LENGTH - 1);
+    list->items[list->count].timestamp_text[MAX_TIMESTAMP_LENGTH - 1] = '\0';
+    list->items[list->count].timestamp_seconds = entry->timestamp_seconds;
+    list->count++;
+
+    return 1;
+}
+
 int update_user_stats(UserStatsList *list, const LogEntry *entry) {
     size_t i;
 

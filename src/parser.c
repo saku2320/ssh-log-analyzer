@@ -12,6 +12,7 @@ static void init_log_entry(LogEntry *entry) {
     entry->has_timestamp = 0;
     entry->timestamp_seconds = 0;
     entry->time_text[0] = '\0';
+    entry->timestamp_text[0] = '\0';
     entry->ip[0] = '\0';
     entry->country[0] = '\0';
     entry->region[0] = '\0';
@@ -92,6 +93,12 @@ static void extract_timestamp(const char *line, LogEntry *entry) {
                                minute * 60 +
                                second;
     snprintf(entry->time_text, sizeof(entry->time_text), "%02d:%02d:%02d", hour, minute, second);
+    snprintf(entry->timestamp_text, sizeof(entry->timestamp_text), "%s %d %02d:%02d:%02d",
+             month,
+             day,
+             hour,
+             minute,
+             second);
 }
 
 static const char *skip_spaces(const char *value) {

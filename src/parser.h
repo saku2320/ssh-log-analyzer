@@ -8,6 +8,7 @@
 #define MAX_TTY_LENGTH 64
 #define MAX_GEO_LENGTH 64
 #define MAX_TIME_LENGTH 16
+#define MAX_TIMESTAMP_LENGTH 32
 
 typedef struct {
     int is_failed;
@@ -18,6 +19,7 @@ typedef struct {
     int has_timestamp;
     int timestamp_seconds;
     char time_text[MAX_TIME_LENGTH];
+    char timestamp_text[MAX_TIMESTAMP_LENGTH];
     char ip[MAX_IP_LENGTH];
     char country[MAX_GEO_LENGTH];
     char region[MAX_GEO_LENGTH];

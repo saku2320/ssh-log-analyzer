@@ -9,6 +9,8 @@
 #define COLOR_BOLD "\033[1m"
 #define COLOR_RESET "\033[0m"
 #define BRUTEFORCE_RULE_COUNT 3
+#define CRITICAL_FAILURE_THRESHOLD 10
+#define CRITICAL_SUCCESS_WINDOW_SECONDS 1800
 
 typedef struct {
     int window_seconds;
@@ -226,6 +228,55 @@ void print_bruteforce_alerts(const FailureEventList *list) {
 
     if (!found) {
         printf("No brute-force patterns found.\n");
+    }
+}
+
+static int count_failures_before_success(const FailureEventList *failures, const SuccessEvent *success) {
+    size_t i;
+    int count = 0;
+    int elapsed;
+
+    for (i = 0; i < failures->count; i++) {
+        if (strcmp(failures->items[i].ip, success->ip) != 0 ||
+            strcmp(failures->items[i].user, success->user) != 0) {
+            continue;
+        }
+
+        elapsed = success->timestamp_seconds - failures->items[i].timestamp_seconds;
+        if (elapsed >= 0 && elapsed <= CRITICAL_SUCCESS_WINDOW_SECONDS) {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+void print_post_failure_success_alerts(const FailureEventList *failures, const SuccessEventList *successes) {
+    size_t i;
+    int failed_count;
+    int found = 0;
+
+    printf("\n" COLOR_BOLD COLOR_RED "===== Post-failure Login Success Alerts =====" COLOR_RESET "\n");
+
+    if (failures->count == 0 || successes->count == 0) {
+        printf("No timestamped failure/success pairs found.\n");
+        return;
+    }
+
+    for (i = 0; i < successes->count; i++) {
+        failed_count = count_failures_before_success(failures, &successes->items[i]);
+        if (failed_count >= CRITICAL_FAILURE_THRESHOLD) {
+            printf(COLOR_BOLD COLOR_RED "[CRITICAL] Login succeeded after repeated failures" COLOR_RESET "\n");
+            printf("IP Address    : %s\n", successes->items[i].ip);
+            printf("User          : %s\n", successes->items[i].user);
+            printf("Failed Count  : %d\n", failed_count);
+            printf("Success Time  : %s\n\n", successes->items[i].timestamp_text);
+            found = 1;
+        }
+    }
+
+    if (!found) {
+        printf("No successful logins after repeated failures found.\n");
     }
 }
 
