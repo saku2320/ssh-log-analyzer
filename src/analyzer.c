@@ -199,6 +199,8 @@ int update_failure_events(FailureEventList *list, const LogEntry *entry) {
     strncpy(list->items[list->count].time_text, entry->time_text, MAX_TIME_LENGTH - 1);
     list->items[list->count].time_text[MAX_TIME_LENGTH - 1] = '\0';
     list->items[list->count].timestamp_seconds = entry->timestamp_seconds;
+    list->items[list->count].is_root = entry->is_root;
+    list->items[list->count].is_invalid_user = entry->is_invalid_user;
     list->count++;
 
     return 1;

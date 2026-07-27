@@ -16,6 +16,7 @@ typedef struct {
     int is_root;
     int is_sudo;
     int is_su;
+    int is_invalid_user;
     int has_timestamp;
     int timestamp_seconds;
     char time_text[MAX_TIME_LENGTH];

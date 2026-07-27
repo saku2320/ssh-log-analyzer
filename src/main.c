@@ -289,6 +289,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         printf("Unique IPs tracked         : " COLOR_RED "%zu" COLOR_RESET "\n", stats.count);
         print_bruteforce_alerts(&failure_events);
         print_post_failure_success_alerts(&failure_events, &success_events);
+        print_risk_assessment(&failure_events, &success_events);
         print_geo_warnings(&stats);
         print_top_failed_ips(&stats, TOP_N);
         free_ip_stats_list(&stats);
@@ -304,6 +305,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         print_user_stats(&users);
         print_bruteforce_alerts(&failure_events);
         print_post_failure_success_alerts(&failure_events, &success_events);
+        print_risk_assessment(&failure_events, &success_events);
         print_geo_warnings(&stats);
         print_top_targeted_users(&users, TOP_N);
         free_ip_stats_list(&stats);
@@ -318,6 +320,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         printf("Unique IPs tracked         : " COLOR_GREEN "%zu" COLOR_RESET "\n", stats.count);
         print_ip_stats(&stats);
         print_post_failure_success_alerts(&failure_events, &success_events);
+        print_risk_assessment(&failure_events, &success_events);
         print_geo_warnings(&stats);
         print_top_successful_ips(&stats, TOP_N);
         free_ip_stats_list(&stats);
@@ -332,6 +335,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         printf("Unique users tracked       : " COLOR_GREEN "%zu" COLOR_RESET "\n", users.count);
         print_user_stats(&users);
         print_post_failure_success_alerts(&failure_events, &success_events);
+        print_risk_assessment(&failure_events, &success_events);
         print_geo_warnings(&stats);
         print_top_successful_users(&users, TOP_N);
         free_ip_stats_list(&stats);
@@ -361,6 +365,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
     print_ip_stats(&stats);
     print_bruteforce_alerts(&failure_events);
     print_post_failure_success_alerts(&failure_events, &success_events);
+    print_risk_assessment(&failure_events, &success_events);
     print_geo_warnings(&stats);
     print_top_failed_ips(&stats, TOP_N);
     print_top_successful_ips(&stats, TOP_N);

@@ -51,6 +51,9 @@ ssh-log-analyzer$ tree
 - 検知条件は `1分以内に10回`、`5分以内に30回`、`10分以内に50回`
 #### 失敗後ログイン成功警告
 - 同一IP・同一ユーザーで10回以上失敗した後、30分以内にログイン成功した場合、侵入の可能性が高い重大アラートとして表示
+#### 危険度スコア
+- IPごとに攻撃兆候を点数化し、HIGHまたはCRITICALに分類されたIPのみ表示
+- スコア条件は `5分以内に10回失敗`、`rootへのログイン試行`、`存在しないユーザーへの試行`、`10人以上のユーザーを試行`、`失敗後にログイン成功`
 #### 失敗IP Top5
 - 失敗回数が多い順にIPのTop5
 #### 成功IP Top5
@@ -99,6 +102,7 @@ ssh-log-analyzer$ tree
 - ログに国・地域情報が含まれる場合、接続元IPごとの国・地域表示と警告表示を追加
 - 失敗回数の合計ではなく、一定時間内の連続失敗からSSHブルートフォース攻撃疑いを検知できるように改良
 - 同一IP・同一ユーザーで繰り返し失敗した後のログイン成功を重大アラートとして検知できるように改良
+- IPごとの危険度スコアを算出し、HIGH/CRITICALのみ理由付きで表示できるように改良
 
 ## 目標
 - ブルートフォース攻撃疑いを検出可に
@@ -140,10 +144,10 @@ make run success user
 - `root`: rootログイン試行のみ出力
 - `sudo`: sudoコマンド実行ログと詳細情報を出力
 - `su`: suコマンド実行ログとauth.logから分かる範囲の詳細情報を出力
-- `failed ip`: `Unique IPs tracked`、`Brute-force Alerts`、`Post-failure Login Success Alerts`、`Geo Location Warnings`、`Top 5 Failed IPs`を出力
-- `failed user`: `Unique users tracked`、`User Statistics`、`Brute-force Alerts`、`Post-failure Login Success Alerts`、`Geo Location Warnings`、`Top 5 Targeted Users`を出力
-- `success ip`: `Unique IPs tracked`、`IP Statistics`、`Post-failure Login Success Alerts`、`Geo Location Warnings`、`Top 5 Successful IPs`を出力
-- `success user`: `Unique users tracked`、`User Statistics`、`Post-failure Login Success Alerts`、`Geo Location Warnings`、`Top 5 Successful Users`を出力
+- `failed ip`: `Unique IPs tracked`、`Brute-force Alerts`、`Post-failure Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Failed IPs`を出力
+- `failed user`: `Unique users tracked`、`User Statistics`、`Brute-force Alerts`、`Post-failure Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Targeted Users`を出力
+- `success ip`: `Unique IPs tracked`、`IP Statistics`、`Post-failure Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Successful IPs`を出力
+- `success user`: `Unique users tracked`、`User Statistics`、`Post-failure Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Successful Users`を出力
 
 `failed` のような単体フィルタを指定した場合は、条件に一致したログ行と一致件数のみを出力する。
 `failed ip` や `success user` のように種類を追加した場合は、指定した集計セクションのみを出力する。
@@ -155,6 +159,16 @@ make run success user
 
 失敗後ログイン成功警告では、同一IP・同一ユーザーで10回以上失敗した後、30分以内に成功ログが出た場合に `[CRITICAL] Login succeeded after repeated failures` を表示する。
 ログ行に時刻情報がない失敗ログまたは成功ログは、この重大アラート判定の対象外となる。
+
+危険度スコアでは、IPごとに以下の条件で加点する。
+- `5分以内に10回失敗`: +20
+- `rootへのログイン試行`: +20
+- `存在しないユーザーへの試行`: +10
+- `10人以上のユーザーを試行`: +20
+- `失敗後にログイン成功`: +50
+
+合計点は `0～29 LOW`、`30～59 MEDIUM`、`60～89 HIGH`、`90以上 CRITICAL` に分類する。
+出力が多くなりすぎないよう、`Risk Assessment` ではHIGHまたはCRITICALに分類されたIPのみ表示する。
 
 ログ行に `country=JP`、`region=Tokyo`、`geoip_country=Japan`、`geoip_region=Tokyo` などの国・地域情報が含まれる場合は、既存の各実行コマンドの出力に国・地域項目と警告が追加される。
 ログに国・地域情報がない場合は、IP統計では `(not recorded)` と表示し、警告欄では未記録として表示する。

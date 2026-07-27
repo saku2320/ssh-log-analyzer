@@ -46,6 +46,8 @@ typedef struct {
     char user[MAX_USER_LENGTH];
     char time_text[MAX_TIME_LENGTH];
     int timestamp_seconds;
+    int is_root;
+    int is_invalid_user;
 } FailureEvent;
 
 typedef struct {

@@ -280,6 +280,175 @@ void print_post_failure_success_alerts(const FailureEventList *failures, const S
     }
 }
 
+static const char *risk_level(int score) {
+    if (score >= 90) {
+        return "CRITICAL";
+    }
+
+    if (score >= 60) {
+        return "HIGH";
+    }
+
+    if (score >= 30) {
+        return "MEDIUM";
+    }
+
+    return "LOW";
+}
+
+static int ip_has_root_target(const FailureEventList *failures, const char *ip) {
+    size_t i;
+
+    for (i = 0; i < failures->count; i++) {
+        if (strcmp(failures->items[i].ip, ip) == 0 && failures->items[i].is_root) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static int ip_has_invalid_user_target(const FailureEventList *failures, const char *ip) {
+    size_t i;
+
+    for (i = 0; i < failures->count; i++) {
+        if (strcmp(failures->items[i].ip, ip) == 0 && failures->items[i].is_invalid_user) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static int count_unique_users_for_ip(const FailureEventList *failures, const char *ip) {
+    const char *users[256];
+    size_t user_count = 0;
+    size_t i;
+
+    for (i = 0; i < failures->count; i++) {
+        if (strcmp(failures->items[i].ip, ip) != 0 || failures->items[i].user[0] == '\0') {
+            continue;
+        }
+
+        if (user_count < 256 && !user_is_listed(users, user_count, failures->items[i].user)) {
+            users[user_count] = failures->items[i].user;
+            user_count++;
+        }
+    }
+
+    return (int)user_count;
+}
+
+static int ip_has_success_after_failures(const FailureEventList *failures,
+                                         const SuccessEventList *successes,
+                                         const char *ip) {
+    size_t i;
+
+    for (i = 0; i < successes->count; i++) {
+        if (strcmp(successes->items[i].ip, ip) != 0) {
+            continue;
+        }
+
+        if (count_failures_before_success(failures, &successes->items[i]) >= CRITICAL_FAILURE_THRESHOLD) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static void print_risk_reasons(int best_five_min_failures,
+                               int has_root,
+                               int has_invalid_user,
+                               int unique_users,
+                               int has_post_failure_success) {
+    printf("Reasons:\n");
+    if (best_five_min_failures >= 10) {
+        printf("- %d failed logins within 5 minutes\n", best_five_min_failures);
+    }
+    if (has_root) {
+        printf("- Root account targeted\n");
+    }
+    if (has_invalid_user) {
+        printf("- Invalid user login attempts detected\n");
+    }
+    if (unique_users >= 10) {
+        printf("- %d different users targeted\n", unique_users);
+    }
+    if (has_post_failure_success) {
+        printf("- Successful login after repeated failures\n");
+    }
+}
+
+void print_risk_assessment(const FailureEventList *failures, const SuccessEventList *successes) {
+    size_t i;
+    size_t best_start;
+    size_t best_end;
+    int best_count;
+    int has_root;
+    int has_invalid_user;
+    int unique_users;
+    int has_post_failure_success;
+    int score;
+    int found = 0;
+
+    printf("\n" COLOR_BOLD COLOR_RED "===== Risk Assessment (HIGH/CRITICAL) =====" COLOR_RESET "\n");
+
+    if (failures->count == 0) {
+        printf("No failed login events found for risk scoring.\n");
+        return;
+    }
+
+    for (i = 0; i < failures->count; i++) {
+        if (ip_already_checked(failures, i)) {
+            continue;
+        }
+
+        find_best_window_for_ip(failures, failures->items[i].ip, 300, &best_start, &best_end, &best_count);
+        (void)best_start;
+        (void)best_end;
+
+        has_root = ip_has_root_target(failures, failures->items[i].ip);
+        has_invalid_user = ip_has_invalid_user_target(failures, failures->items[i].ip);
+        unique_users = count_unique_users_for_ip(failures, failures->items[i].ip);
+        has_post_failure_success = ip_has_success_after_failures(failures, successes, failures->items[i].ip);
+
+        score = 0;
+        if (best_count >= 10) {
+            score += 20;
+        }
+        if (has_root) {
+            score += 20;
+        }
+        if (has_invalid_user) {
+            score += 10;
+        }
+        if (unique_users >= 10) {
+            score += 20;
+        }
+        if (has_post_failure_success) {
+            score += 50;
+        }
+
+        if (score >= 60) {
+            printf("Risk Level : %s\n", risk_level(score));
+            printf("Risk Score : %d\n", score);
+            printf("IP Address : %s\n", failures->items[i].ip);
+            print_risk_reasons(best_count,
+                               has_root,
+                               has_invalid_user,
+                               unique_users,
+                               has_post_failure_success);
+            printf("\n");
+            found = 1;
+        }
+    }
+
+    if (!found) {
+        printf("No HIGH or CRITICAL risks found.\n");
+    }
+}
+
 void print_summary(const Summary *summary) {
     printf("===== SSH Log Analysis Result =====\n");
     printf("Total failed login attempts : " COLOR_RED "%d" COLOR_RESET "\n", summary->total_failed);

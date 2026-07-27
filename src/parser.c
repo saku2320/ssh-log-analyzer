@@ -9,6 +9,7 @@ static void init_log_entry(LogEntry *entry) {
     entry->is_root = 0;
     entry->is_sudo = 0;
     entry->is_su = 0;
+    entry->is_invalid_user = 0;
     entry->has_timestamp = 0;
     entry->timestamp_seconds = 0;
     entry->time_text[0] = '\0';
@@ -281,6 +282,7 @@ int parse_log_line(const char *line, LogEntry *entry) {
 
     } else if (strstr(line, "Failed password for invalid user ") != NULL) {
         entry->is_failed = 1;
+        entry->is_invalid_user = 1;
         user_start = strstr(line, "Failed password for invalid user ");
         if (user_start != NULL) {
             sscanf(user_start + strlen("Failed password for invalid user "), "%63s", entry->user);
@@ -305,6 +307,7 @@ int parse_log_line(const char *line, LogEntry *entry) {
 
     } else if (strstr(line, "Invalid user ") != NULL) {
         entry->is_failed = 1;
+        entry->is_invalid_user = 1;
         user_pos = strstr(line, "Invalid user ");
         if (user_pos != NULL) {
             sscanf(user_pos + strlen("Invalid user "), "%63s", entry->user);
