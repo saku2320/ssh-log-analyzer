@@ -379,14 +379,37 @@ static int ip_has_success_after_failures(const FailureEventList *failures,
     return 0;
 }
 
+static int five_min_failure_score(int failures) {
+    if (failures >= 250) {
+        return 50;
+    }
+
+    if (failures >= 100) {
+        return 40;
+    }
+
+    if (failures >= 50) {
+        return 30;
+    }
+
+    if (failures >= 10) {
+        return 20;
+    }
+
+    return 0;
+}
+
 static void print_risk_reasons(int best_five_min_failures,
+                               int five_min_score,
                                int has_root,
                                int has_invalid_user,
                                int unique_users,
                                int has_post_failure_success) {
     printf("%s:\n", is_ja() ? "理由" : "Reasons");
-    if (best_five_min_failures >= 10) {
-        printf(is_ja() ? "- 5分以内に%d回ログイン失敗\n" : "- %d failed logins within 5 minutes\n", best_five_min_failures);
+    if (five_min_score > 0) {
+        printf(is_ja() ? "- 5分以内に%d回ログイン失敗 (+%d)\n" : "- %d failed logins within 5 minutes (+%d)\n",
+               best_five_min_failures,
+               five_min_score);
     }
     if (has_root) {
         printf("%s\n", is_ja() ? "- rootアカウントが狙われました" : "- Root account targeted");
@@ -411,6 +434,7 @@ void print_risk_assessment(const FailureEventList *failures, const SuccessEventL
     int has_invalid_user;
     int unique_users;
     int has_post_failure_success;
+    int five_min_score;
     int score;
     int found = 0;
 
@@ -436,10 +460,8 @@ void print_risk_assessment(const FailureEventList *failures, const SuccessEventL
         unique_users = count_unique_users_for_ip(failures, failures->items[i].ip);
         has_post_failure_success = ip_has_success_after_failures(failures, successes, failures->items[i].ip);
 
-        score = 0;
-        if (best_count >= 10) {
-            score += 20;
-        }
+        five_min_score = five_min_failure_score(best_count);
+        score = five_min_score;
         if (has_root) {
             score += 20;
         }
@@ -458,6 +480,7 @@ void print_risk_assessment(const FailureEventList *failures, const SuccessEventL
             printf("%s : %d\n", is_ja() ? "Risk Score" : "Risk Score", score);
             printf("%s : %s\n", is_ja() ? "IPアドレス" : "IP Address", failures->items[i].ip);
             print_risk_reasons(best_count,
+                               five_min_score,
                                has_root,
                                has_invalid_user,
                                unique_users,
