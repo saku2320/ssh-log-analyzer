@@ -6,7 +6,6 @@
 #include "report.h"
 
 #define MAX_LINE_LENGTH 1024
-#define ALERT_THRESHOLD 5
 #define TOP_N 5
 #define COLOR_RED "\033[31m"
 #define COLOR_GREEN "\033[32m"
@@ -29,8 +28,8 @@ typedef enum {
 } ReportMode;
 
 static void print_usage(const char *program_name) {
-    fprintf(stderr, "Usage: %s <logfile> [threshold] [failed|success|root|sudo|su]\n", program_name);
-    fprintf(stderr, "       %s <logfile> [threshold] [failed|success] [ip|user]\n", program_name);
+    fprintf(stderr, "Usage: %s <logfile> [failed|success|root|sudo|su]\n", program_name);
+    fprintf(stderr, "       %s <logfile> [failed|success] [ip|user]\n", program_name);
 }
 
 static int parse_positive_int(const char *value, int *result) {
@@ -170,7 +169,8 @@ int main(int argc, char *argv[]) {
     LogEntry entry;
     Summary summary;
     IpStatsList stats;
-    int alert_threshold;
+    FailureEventList failure_events;
+    int ignored_threshold;
     UserStatsList users;
     FilterMode filter_mode = FILTER_ALL;
     ReportMode report_mode = REPORT_NONE;
@@ -186,14 +186,14 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    alert_threshold = ALERT_THRESHOLD;
-
     for (i = 2; i < argc; i++) {
         if (parse_filter_argument(argv[i], &filter_mode)) {
             continue;
         } else if (parse_report_argument(argv[i], &report_mode)) {
             continue;
-        } else if (!parse_positive_int(argv[i], &alert_threshold)) {
+        } else if (parse_positive_int(argv[i], &ignored_threshold)) {
+            continue;
+        } else {
             fprintf(stderr, "Unknown option or invalid threshold: %s\n", argv[i]);
             print_usage(argv[0]);
             return 1;
@@ -215,6 +215,7 @@ int main(int argc, char *argv[]) {
 
     init_summary(&summary);
     init_ip_stats_list(&stats);
+    init_failure_event_list(&failure_events);
 
     init_user_stats_list(&users);
 
@@ -238,6 +239,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
             fprintf(stderr, "Failed to update IP stats: out of memory\n");
             fclose(fp);
             free_ip_stats_list(&stats);
+            free_failure_event_list(&failure_events);
             free_user_stats_list(&users);
             return 1;
         }
@@ -246,6 +248,16 @@ while (fgets(line, sizeof(line), fp) != NULL) {
             fprintf(stderr, "Failed to update user stats: out of memory\n");
             fclose(fp);
             free_ip_stats_list(&stats);
+            free_failure_event_list(&failure_events);
+            free_user_stats_list(&users);
+            return 1;
+        }
+
+        if (!update_failure_events(&failure_events, &entry)) {
+            fprintf(stderr, "Failed to update failure events: out of memory\n");
+            fclose(fp);
+            free_ip_stats_list(&stats);
+            free_failure_event_list(&failure_events);
             free_user_stats_list(&users);
             return 1;
         }
@@ -260,10 +272,11 @@ while (fgets(line, sizeof(line), fp) != NULL) {
     if (report_mode == REPORT_IP && filter_mode == FILTER_FAILED) {
         printf("===== Failed IP Report =====\n");
         printf("Unique IPs tracked         : " COLOR_RED "%zu" COLOR_RESET "\n", stats.count);
-        print_suspicious_ips(&stats, alert_threshold);
+        print_bruteforce_alerts(&failure_events);
         print_geo_warnings(&stats);
         print_top_failed_ips(&stats, TOP_N);
         free_ip_stats_list(&stats);
+        free_failure_event_list(&failure_events);
         free_user_stats_list(&users);
         return 0;
     }
@@ -272,9 +285,11 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         printf("===== Failed User Report =====\n");
         printf("Unique users tracked       : " COLOR_RED "%zu" COLOR_RESET "\n", users.count);
         print_user_stats(&users);
+        print_bruteforce_alerts(&failure_events);
         print_geo_warnings(&stats);
         print_top_targeted_users(&users, TOP_N);
         free_ip_stats_list(&stats);
+        free_failure_event_list(&failure_events);
         free_user_stats_list(&users);
         return 0;
     }
@@ -286,6 +301,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         print_geo_warnings(&stats);
         print_top_successful_ips(&stats, TOP_N);
         free_ip_stats_list(&stats);
+        free_failure_event_list(&failure_events);
         free_user_stats_list(&users);
         return 0;
     }
@@ -297,6 +313,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         print_geo_warnings(&stats);
         print_top_successful_users(&users, TOP_N);
         free_ip_stats_list(&stats);
+        free_failure_event_list(&failure_events);
         free_user_stats_list(&users);
         return 0;
     }
@@ -304,6 +321,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
     if (filter_mode != FILTER_ALL) {
         printf("Matched filtered lines      : " COLOR_GREEN "%lu" COLOR_RESET "\n", filtered_lines);
         free_ip_stats_list(&stats);
+        free_failure_event_list(&failure_events);
         free_user_stats_list(&users);
         return 0;
     }
@@ -317,7 +335,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
     printf("Unique IPs tracked         : " COLOR_RED "%zu" COLOR_RESET "\n", stats.count);
 
     print_ip_stats(&stats);
-    print_suspicious_ips(&stats, alert_threshold);
+    print_bruteforce_alerts(&failure_events);
     print_geo_warnings(&stats);
     print_top_failed_ips(&stats, TOP_N);
     print_top_successful_ips(&stats, TOP_N);
@@ -326,6 +344,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
     print_top_targeted_users(&users, TOP_N);
 
     free_ip_stats_list(&stats);
+    free_failure_event_list(&failure_events);
 
     free_user_stats_list(&users);
 

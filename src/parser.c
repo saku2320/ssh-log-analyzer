@@ -9,6 +9,9 @@ static void init_log_entry(LogEntry *entry) {
     entry->is_root = 0;
     entry->is_sudo = 0;
     entry->is_su = 0;
+    entry->has_timestamp = 0;
+    entry->timestamp_seconds = 0;
+    entry->time_text[0] = '\0';
     entry->ip[0] = '\0';
     entry->country[0] = '\0';
     entry->region[0] = '\0';
@@ -29,6 +32,66 @@ static void extract_ip(const char *line, LogEntry *entry) {
     if (from_pos != NULL) {
         sscanf(from_pos + 6, "%63s", entry->ip);
     }
+}
+
+static int month_number(const char *month) {
+    static const char *months[] = {
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    };
+    int i;
+
+    for (i = 0; i < 12; i++) {
+        if (strcmp(month, months[i]) == 0) {
+            return i + 1;
+        }
+    }
+
+    return 0;
+}
+
+static int seconds_before_month(int month) {
+    static const int month_days[] = {
+        31, 28, 31, 30, 31, 30,
+        31, 31, 30, 31, 30, 31
+    };
+    int i;
+    int seconds = 0;
+
+    for (i = 1; i < month; i++) {
+        seconds += month_days[i - 1] * 24 * 60 * 60;
+    }
+
+    return seconds;
+}
+
+static void extract_timestamp(const char *line, LogEntry *entry) {
+    char month[4];
+    int day;
+    int hour;
+    int minute;
+    int second;
+    int month_num;
+
+    if (sscanf(line, "%3s %d %d:%d:%d", month, &day, &hour, &minute, &second) != 5) {
+        return;
+    }
+
+    month[3] = '\0';
+    month_num = month_number(month);
+    if (month_num == 0 || day < 1 || day > 31 ||
+        hour < 0 || hour > 23 || minute < 0 || minute > 59 ||
+        second < 0 || second > 59) {
+        return;
+    }
+
+    entry->has_timestamp = 1;
+    entry->timestamp_seconds = seconds_before_month(month_num) +
+                               (day - 1) * 24 * 60 * 60 +
+                               hour * 60 * 60 +
+                               minute * 60 +
+                               second;
+    snprintf(entry->time_text, sizeof(entry->time_text), "%02d:%02d:%02d", hour, minute, second);
 }
 
 static const char *skip_spaces(const char *value) {
@@ -197,6 +260,7 @@ int parse_log_line(const char *line, LogEntry *entry) {
     const char *from_pos = NULL;
 
     init_log_entry(entry);
+    extract_timestamp(line, entry);
 
     if (strstr(line, " sudo:") != NULL && strstr(line, "COMMAND=") != NULL) {
         entry->is_sudo = 1;

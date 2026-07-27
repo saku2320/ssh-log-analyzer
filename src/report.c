@@ -8,6 +8,18 @@
 #define COLOR_YELLOW "\033[33m"
 #define COLOR_BOLD "\033[1m"
 #define COLOR_RESET "\033[0m"
+#define BRUTEFORCE_RULE_COUNT 3
+
+typedef struct {
+    int window_seconds;
+    int failure_threshold;
+} BruteForceRule;
+
+static const BruteForceRule BRUTEFORCE_RULES[BRUTEFORCE_RULE_COUNT] = {
+    {60, 10},
+    {300, 30},
+    {600, 50}
+};
 
 static void copy_ip_stats(IpStats *dest, const IpStats *src, size_t count) {
     size_t i;
@@ -59,6 +71,162 @@ static const char *geo_display_value(const char *value) {
 
 static int has_geo(const IpStats *stats) {
     return stats->country[0] != '\0' || stats->region[0] != '\0';
+}
+
+static int user_is_listed(const char *users[], size_t user_count, const char *user) {
+    size_t i;
+
+    for (i = 0; i < user_count; i++) {
+        if (strcmp(users[i], user) == 0) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static void print_alert_users(const FailureEventList *list, size_t start, size_t end, const char *ip) {
+    const char *users[128];
+    size_t user_count = 0;
+    size_t i;
+
+    for (i = start; i <= end; i++) {
+        if (strcmp(list->items[i].ip, ip) != 0) {
+            continue;
+        }
+
+        if (list->items[i].user[0] == '\0') {
+            continue;
+        }
+
+        if (user_count < 128 && !user_is_listed(users, user_count, list->items[i].user)) {
+            users[user_count] = list->items[i].user;
+            user_count++;
+        }
+    }
+
+    printf("Users      : ");
+    if (user_count == 0) {
+        printf("(unknown)");
+    } else {
+        for (i = 0; i < user_count; i++) {
+            if (i > 0) {
+                printf(", ");
+            }
+            printf("%s", users[i]);
+        }
+    }
+    printf("\n");
+}
+
+static void print_bruteforce_alert(const FailureEventList *list, const char *ip, size_t start, size_t end, int failures) {
+    printf(COLOR_BOLD COLOR_RED "[ALERT] SSH brute-force suspected" COLOR_RESET "\n");
+    printf("IP Address : %s\n", ip);
+    printf("Period     : %s - %s\n", list->items[start].time_text, list->items[end].time_text);
+    printf("Failures   : %d\n", failures);
+    print_alert_users(list, start, end, ip);
+    printf("\n");
+}
+
+static int ip_already_checked(const FailureEventList *list, size_t current) {
+    size_t i;
+
+    for (i = 0; i < current; i++) {
+        if (strcmp(list->items[i].ip, list->items[current].ip) == 0) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static void find_best_window_for_ip(const FailureEventList *list,
+                                    const char *ip,
+                                    int window_seconds,
+                                    size_t *best_start,
+                                    size_t *best_end,
+                                    int *best_count) {
+    size_t start;
+    size_t end;
+    int count;
+
+    *best_start = 0;
+    *best_end = 0;
+    *best_count = 0;
+
+    for (start = 0; start < list->count; start++) {
+        if (strcmp(list->items[start].ip, ip) != 0) {
+            continue;
+        }
+
+        count = 0;
+        for (end = start; end < list->count; end++) {
+            if (list->items[end].timestamp_seconds - list->items[start].timestamp_seconds > window_seconds) {
+                break;
+            }
+
+            if (strcmp(list->items[end].ip, ip) == 0) {
+                count++;
+                if (count > *best_count) {
+                    *best_count = count;
+                    *best_start = start;
+                    *best_end = end;
+                }
+            }
+        }
+    }
+}
+
+void print_bruteforce_alerts(const FailureEventList *list) {
+    size_t i;
+    size_t rule_index;
+    size_t best_start;
+    size_t best_end;
+    size_t alert_start;
+    size_t alert_end;
+    int best_count;
+    int alert_count;
+    int found = 0;
+
+    printf("\n" COLOR_BOLD COLOR_RED "===== Brute-force Alerts =====" COLOR_RESET "\n");
+
+    if (list->count == 0) {
+        printf("No timestamped failed login events found.\n");
+        return;
+    }
+
+    for (i = 0; i < list->count; i++) {
+        if (ip_already_checked(list, i)) {
+            continue;
+        }
+
+        alert_start = 0;
+        alert_end = 0;
+        alert_count = 0;
+
+        for (rule_index = 0; rule_index < BRUTEFORCE_RULE_COUNT; rule_index++) {
+            find_best_window_for_ip(list,
+                                    list->items[i].ip,
+                                    BRUTEFORCE_RULES[rule_index].window_seconds,
+                                    &best_start,
+                                    &best_end,
+                                    &best_count);
+            if (best_count >= BRUTEFORCE_RULES[rule_index].failure_threshold) {
+                alert_start = best_start;
+                alert_end = best_end;
+                alert_count = best_count;
+            }
+        }
+
+        if (alert_count > 0) {
+            print_bruteforce_alert(list, list->items[i].ip, alert_start, alert_end, alert_count);
+            found = 1;
+        }
+    }
+
+    if (!found) {
+        printf("No brute-force patterns found.\n");
+    }
 }
 
 void print_summary(const Summary *summary) {

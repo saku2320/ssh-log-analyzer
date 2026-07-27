@@ -41,6 +41,19 @@ typedef struct {
     size_t capacity;
 } UserStatsList;
 
+typedef struct {
+    char ip[MAX_IP_LENGTH];
+    char user[MAX_USER_LENGTH];
+    char time_text[MAX_TIME_LENGTH];
+    int timestamp_seconds;
+} FailureEvent;
+
+typedef struct {
+    FailureEvent *items;
+    size_t count;
+    size_t capacity;
+} FailureEventList;
+
 void init_user_stats_list(UserStatsList *list);
 void free_user_stats_list(UserStatsList *list);
 int update_user_stats(UserStatsList *list, const LogEntry *entry);
@@ -55,5 +68,9 @@ void free_ip_stats_list(IpStatsList *list);
 
 void update_summary(Summary *summary, const LogEntry *entry);
 int update_ip_stats(IpStatsList *list, const LogEntry *entry);
+
+void init_failure_event_list(FailureEventList *list);
+void free_failure_event_list(FailureEventList *list);
+int update_failure_events(FailureEventList *list, const LogEntry *entry);
 
 #endif

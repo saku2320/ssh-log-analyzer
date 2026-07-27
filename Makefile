@@ -8,7 +8,7 @@ OBJS = $(SRCS:.c=.o)
 LOGFILE = sample_log/auth.log
 
 ARGS ?= $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
-RUN_ARGS := $(if $(ARGS),$(ARGS),5)
+RUN_ARGS := $(ARGS)
 
 
 all: $(TARGET)

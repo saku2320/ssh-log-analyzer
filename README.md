@@ -46,8 +46,9 @@ ssh-log-analyzer$ tree
 - 検出された全IPごとの国・地域、成功・失敗回数（国・地域はログに記録がある場合のみ）
 #### 国・地域警告
 - 接続元IPに紐づく国・地域情報がログに記録されている場合、そのIPと国・地域を警告表示
-#### 不審IP
-- 失敗回数が一定以上の不審IPの抽出とそれぞれの国・地域、失敗回数（検出順）
+#### ブルートフォース警告
+- 同一IPから短時間に連続失敗が発生した場合、IP、検知期間、失敗回数、対象ユーザを警告表示
+- 検知条件は `1分以内に10回`、`5分以内に30回`、`10分以内に50回`
 #### 失敗IP Top5
 - 失敗回数が多い順にIPのTop5
 #### 成功IP Top5
@@ -76,14 +77,14 @@ ssh-log-analyzer$ tree
 - 総成功・失敗回数の出力
 - root試行回数の出力
 - IPごとの成功・失敗回数の出力
-- 失敗回数から、より怪しいIPとそのIPの失敗回数を出力
+- 一定時間内の連続失敗からブルートフォース攻撃疑いを出力
 - 失敗回数が多いIPのTop５を降順で出力
 - 約1万900行のサンプルログファイルでも抽出漏れ等がないように改良
 - Makefileを作成し、ビルドや実行のコマンドを省略できるように改良
 - 対応ログ形式を追加（Invalid userログ＆PAMログ）
 - ログイン試行に使われたユーザ名ごとの成功・失敗回数の出力を追加
 - 失敗回数が多いユーザ名のTop5を降順で出力
-- 不審IP検出基準をコマンド実行時に引数として自由に変更可に
+- 不審IP検出基準をコマンド実行時に引数として自由に変更できるように改良
 - 失敗IP・不審IP・失敗ユーザ名等を色分けして表示できるように改良
 - `failed` でSSH失敗ログのみを簡単に出力できるように改良
 - `success` でSSH成功ログのみを簡単に出力できるように改良
@@ -94,6 +95,7 @@ ssh-log-analyzer$ tree
 - `sudo` で実行ユーザ・切替先ユーザ・TTY・作業ディレクトリ・実行コマンドを詳細表示できるように改良
 - `su` で切替先ユーザ・ログインユーザ・TTYを詳細表示できるように改良
 - ログに国・地域情報が含まれる場合、接続元IPごとの国・地域表示と警告表示を追加
+- 失敗回数の合計ではなく、一定時間内の連続失敗からSSHブルートフォース攻撃疑いを検知できるように改良
 
 ## 目標
 - ブルートフォース攻撃疑いを検出可に
@@ -115,11 +117,7 @@ make re
 ## 実行方法
 ```bash
 make run
-make run ??
 ```
-
-> ??には不審IPのしきい値として引数を指定 <br>
-指定しない場合、自動的に５が入る
 
 #### フィルタ実行例
 ```bash
@@ -140,14 +138,18 @@ make run success user
 - `root`: rootログイン試行のみ出力
 - `sudo`: sudoコマンド実行ログと詳細情報を出力
 - `su`: suコマンド実行ログとauth.logから分かる範囲の詳細情報を出力
-- `failed ip`: `Unique IPs tracked`、`Suspicious IPs`、`Geo Location Warnings`、`Top 5 Failed IPs`を出力
-- `failed user`: `Unique users tracked`、`User Statistics`、`Geo Location Warnings`、`Top 5 Targeted Users`を出力
+- `failed ip`: `Unique IPs tracked`、`Brute-force Alerts`、`Geo Location Warnings`、`Top 5 Failed IPs`を出力
+- `failed user`: `Unique users tracked`、`User Statistics`、`Brute-force Alerts`、`Geo Location Warnings`、`Top 5 Targeted Users`を出力
 - `success ip`: `Unique IPs tracked`、`IP Statistics`、`Geo Location Warnings`、`Top 5 Successful IPs`を出力
 - `success user`: `Unique users tracked`、`User Statistics`、`Geo Location Warnings`、`Top 5 Successful Users`を出力
 
 `failed` のような単体フィルタを指定した場合は、条件に一致したログ行と一致件数のみを出力する。
 `failed ip` や `success user` のように種類を追加した場合は、指定した集計セクションのみを出力する。
 フィルタを指定しない場合は、すべての集計結果を出力する。
+
+ブルートフォース警告では、同一IPについて `1分以内に10回`、`5分以内に30回`、`10分以内に50回` のいずれかを満たす失敗ログを検出する。
+複数条件に該当する場合は、そのIPで最も広い条件に該当した代表区間を表示する。
+ログ行に時刻情報がない失敗ログは、短時間判定の対象外となる。
 
 ログ行に `country=JP`、`region=Tokyo`、`geoip_country=Japan`、`geoip_region=Tokyo` などの国・地域情報が含まれる場合は、既存の各実行コマンドの出力に国・地域項目と警告が追加される。
 ログに国・地域情報がない場合は、IP統計では `(not recorded)` と表示し、警告欄では未記録として表示する。
@@ -158,7 +160,6 @@ make run success user
 #### 直接実行コマンド
 ```bash
 gcc -Wall -Wextra -std=c11 -o ssh_log_analyzer src/main.c src/analyzer.c src/parser.c src/report.c
-./ssh_log_analyzer sample_log/auth.log ??
 ./ssh_log_analyzer sample_log/auth.log failed
 ./ssh_log_analyzer sample_log/auth.log sudo
 ./ssh_log_analyzer sample_log/auth.log su
