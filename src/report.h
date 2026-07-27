@@ -3,6 +3,13 @@
 
 #include "analyzer.h"
 
+typedef enum {
+    OUTPUT_EN,
+    OUTPUT_JA
+} OutputLanguage;
+
+void set_report_language(OutputLanguage language);
+
 void print_summary(const Summary *summary);
 void print_ip_stats(const IpStatsList *list);
 void print_suspicious_ips(const IpStatsList *list, int threshold);

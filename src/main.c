@@ -28,8 +28,8 @@ typedef enum {
 } ReportMode;
 
 static void print_usage(const char *program_name) {
-    fprintf(stderr, "Usage: %s <logfile> [failed|success|root|sudo|su]\n", program_name);
-    fprintf(stderr, "       %s <logfile> [failed|success] [ip|user]\n", program_name);
+    fprintf(stderr, "Usage: %s <logfile> [failed|success|root|sudo|su] [ja]\n", program_name);
+    fprintf(stderr, "       %s <logfile> [failed|success] [ip|user] [ja]\n", program_name);
 }
 
 static int parse_positive_int(const char *value, int *result) {
@@ -79,18 +79,18 @@ static int parse_report_argument(const char *value, ReportMode *report_mode) {
     return 1;
 }
 
-static const char *filter_label(FilterMode filter_mode) {
+static const char *filter_label(FilterMode filter_mode, OutputLanguage language) {
     switch (filter_mode) {
         case FILTER_FAILED:
-            return "SSH failed only";
+            return language == OUTPUT_JA ? "SSH失敗のみ" : "SSH failed only";
         case FILTER_SUCCESS:
-            return "SSH success only";
+            return language == OUTPUT_JA ? "SSH成功のみ" : "SSH success only";
         case FILTER_ROOT:
-            return "root attempts only";
+            return language == OUTPUT_JA ? "root試行のみ" : "root attempts only";
         case FILTER_SUDO:
-            return "sudo command executions only";
+            return language == OUTPUT_JA ? "sudoコマンド実行のみ" : "sudo command executions only";
         case FILTER_SU:
-            return "su command executions only";
+            return language == OUTPUT_JA ? "suコマンド実行のみ" : "su command executions only";
         case FILTER_ALL:
         default:
             return "all";
@@ -115,9 +115,9 @@ static int entry_matches_filter(const LogEntry *entry, FilterMode filter_mode) {
     }
 }
 
-static const char *display_value(const char *value) {
+static const char *display_value(const char *value, OutputLanguage language) {
     if (value[0] == '\0') {
-        return "(unknown)";
+        return language == OUTPUT_JA ? "(不明)" : "(unknown)";
     }
 
     return value;
@@ -127,40 +127,44 @@ static int entry_has_geo(const LogEntry *entry) {
     return entry->country[0] != '\0' || entry->region[0] != '\0';
 }
 
-static void print_entry_geo_detail(const LogEntry *entry) {
+static void print_entry_geo_detail(const LogEntry *entry, OutputLanguage language) {
     if (entry_has_geo(entry)) {
-        printf("  Geo warning : country=%s, region=%s\n",
-               display_value(entry->country),
-               display_value(entry->region));
+        printf(language == OUTPUT_JA ? "  国・地域警告 : 国=%s, 地域=%s\n" : "  Geo warning : country=%s, region=%s\n",
+               display_value(entry->country, language),
+               display_value(entry->region, language));
     }
 }
 
-static void print_filtered_entry_detail(const LogEntry *entry, FilterMode filter_mode, const char *line, unsigned long index) {
+static void print_filtered_entry_detail(const LogEntry *entry,
+                                        FilterMode filter_mode,
+                                        const char *line,
+                                        unsigned long index,
+                                        OutputLanguage language) {
     if (filter_mode == FILTER_SUDO) {
-        printf("[%lu] sudo command execution\n", index);
-        printf("  User        : %s\n", display_value(entry->sudo_user));
-        printf("  Target user : %s\n", display_value(entry->sudo_target_user));
-        printf("  TTY         : %s\n", display_value(entry->sudo_tty));
-        printf("  PWD         : %s\n", display_value(entry->sudo_pwd));
-        printf("  Command     : %s\n", display_value(entry->command));
-        print_entry_geo_detail(entry);
-        printf("  Raw log     : %s", line);
+        printf(language == OUTPUT_JA ? "[%lu] sudoコマンド実行\n" : "[%lu] sudo command execution\n", index);
+        printf(language == OUTPUT_JA ? "  ユーザー     : %s\n" : "  User        : %s\n", display_value(entry->sudo_user, language));
+        printf(language == OUTPUT_JA ? "  切替先ユーザー : %s\n" : "  Target user : %s\n", display_value(entry->sudo_target_user, language));
+        printf("  TTY         : %s\n", display_value(entry->sudo_tty, language));
+        printf("  PWD         : %s\n", display_value(entry->sudo_pwd, language));
+        printf(language == OUTPUT_JA ? "  コマンド     : %s\n" : "  Command     : %s\n", display_value(entry->command, language));
+        print_entry_geo_detail(entry, language);
+        printf(language == OUTPUT_JA ? "  元ログ       : %s" : "  Raw log     : %s", line);
         return;
     }
 
     if (filter_mode == FILTER_SU) {
-        printf("[%lu] su command execution\n", index);
-        printf("  Login user  : %s\n", display_value(entry->su_login_user));
-        printf("  Target user : %s\n", display_value(entry->su_target_user));
-        printf("  TTY         : %s\n", display_value(entry->su_tty));
-        printf("  Command     : not recorded in auth.log\n");
-        print_entry_geo_detail(entry);
-        printf("  Raw log     : %s", line);
+        printf(language == OUTPUT_JA ? "[%lu] suコマンド実行\n" : "[%lu] su command execution\n", index);
+        printf(language == OUTPUT_JA ? "  ログインユーザー : %s\n" : "  Login user  : %s\n", display_value(entry->su_login_user, language));
+        printf(language == OUTPUT_JA ? "  切替先ユーザー   : %s\n" : "  Target user : %s\n", display_value(entry->su_target_user, language));
+        printf("  TTY         : %s\n", display_value(entry->su_tty, language));
+        printf(language == OUTPUT_JA ? "  コマンド         : auth.logには記録されません\n" : "  Command     : not recorded in auth.log\n");
+        print_entry_geo_detail(entry, language);
+        printf(language == OUTPUT_JA ? "  元ログ           : %s" : "  Raw log     : %s", line);
         return;
     }
 
     printf("%s", line);
-    print_entry_geo_detail(entry);
+    print_entry_geo_detail(entry, language);
 }
 
 int main(int argc, char *argv[]) {
@@ -175,6 +179,7 @@ int main(int argc, char *argv[]) {
     UserStatsList users;
     FilterMode filter_mode = FILTER_ALL;
     ReportMode report_mode = REPORT_NONE;
+    OutputLanguage output_language = OUTPUT_EN;
     unsigned long filtered_lines = 0;
     int i;
 
@@ -188,7 +193,10 @@ int main(int argc, char *argv[]) {
     }
 
     for (i = 2; i < argc; i++) {
-        if (parse_filter_argument(argv[i], &filter_mode)) {
+        if (strcmp(argv[i], "ja") == 0) {
+            output_language = OUTPUT_JA;
+            continue;
+        } else if (parse_filter_argument(argv[i], &filter_mode)) {
             continue;
         } else if (parse_report_argument(argv[i], &report_mode)) {
             continue;
@@ -200,6 +208,8 @@ int main(int argc, char *argv[]) {
             return 1;
         }
     }
+
+    set_report_language(output_language);
 
     if (report_mode != REPORT_NONE && filter_mode != FILTER_FAILED && filter_mode != FILTER_SUCCESS) {
         fprintf(stderr, "Report mode must be used with failed or success.\n");
@@ -222,7 +232,9 @@ int main(int argc, char *argv[]) {
     init_user_stats_list(&users);
 
     if (filter_mode != FILTER_ALL && report_mode == REPORT_NONE) {
-        printf("===== Filtered Log Lines (%s) =====\n", filter_label(filter_mode));
+        printf("===== %s (%s) =====\n",
+               output_language == OUTPUT_JA ? "フィルタ済みログ行" : "Filtered Log Lines",
+               filter_label(filter_mode, output_language));
     }
 
 while (fgets(line, sizeof(line), fp) != NULL) {
@@ -234,7 +246,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
 
         if (report_mode == REPORT_NONE && entry_matches_filter(&entry, filter_mode)) {
             filtered_lines++;
-            print_filtered_entry_detail(&entry, filter_mode, line, filtered_lines);
+            print_filtered_entry_detail(&entry, filter_mode, line, filtered_lines, output_language);
         }
 
         if (!update_ip_stats(&stats, &entry)) {
@@ -285,8 +297,8 @@ while (fgets(line, sizeof(line), fp) != NULL) {
     fclose(fp);
 
     if (report_mode == REPORT_IP && filter_mode == FILTER_FAILED) {
-        printf("===== Failed IP Report =====\n");
-        printf("Unique IPs tracked         : " COLOR_RED "%zu" COLOR_RESET "\n", stats.count);
+        printf("===== %s =====\n", output_language == OUTPUT_JA ? "失敗IPレポート" : "Failed IP Report");
+        printf("%s         : " COLOR_RED "%zu" COLOR_RESET "\n", output_language == OUTPUT_JA ? "追跡IP数" : "Unique IPs tracked", stats.count);
         print_bruteforce_alerts(&failure_events);
         print_post_failure_success_alerts(&failure_events, &success_events);
         print_risk_assessment(&failure_events, &success_events);
@@ -300,8 +312,8 @@ while (fgets(line, sizeof(line), fp) != NULL) {
     }
 
     if (report_mode == REPORT_USER && filter_mode == FILTER_FAILED) {
-        printf("===== Failed User Report =====\n");
-        printf("Unique users tracked       : " COLOR_RED "%zu" COLOR_RESET "\n", users.count);
+        printf("===== %s =====\n", output_language == OUTPUT_JA ? "失敗ユーザーレポート" : "Failed User Report");
+        printf("%s       : " COLOR_RED "%zu" COLOR_RESET "\n", output_language == OUTPUT_JA ? "追跡ユーザー数" : "Unique users tracked", users.count);
         print_user_stats(&users);
         print_bruteforce_alerts(&failure_events);
         print_post_failure_success_alerts(&failure_events, &success_events);
@@ -316,8 +328,8 @@ while (fgets(line, sizeof(line), fp) != NULL) {
     }
 
     if (report_mode == REPORT_IP && filter_mode == FILTER_SUCCESS) {
-        printf("===== Success IP Report =====\n");
-        printf("Unique IPs tracked         : " COLOR_GREEN "%zu" COLOR_RESET "\n", stats.count);
+        printf("===== %s =====\n", output_language == OUTPUT_JA ? "成功IPレポート" : "Success IP Report");
+        printf("%s         : " COLOR_GREEN "%zu" COLOR_RESET "\n", output_language == OUTPUT_JA ? "追跡IP数" : "Unique IPs tracked", stats.count);
         print_ip_stats(&stats);
         print_post_failure_success_alerts(&failure_events, &success_events);
         print_risk_assessment(&failure_events, &success_events);
@@ -331,8 +343,8 @@ while (fgets(line, sizeof(line), fp) != NULL) {
     }
 
     if (report_mode == REPORT_USER && filter_mode == FILTER_SUCCESS) {
-        printf("===== Success User Report =====\n");
-        printf("Unique users tracked       : " COLOR_GREEN "%zu" COLOR_RESET "\n", users.count);
+        printf("===== %s =====\n", output_language == OUTPUT_JA ? "成功ユーザーレポート" : "Success User Report");
+        printf("%s       : " COLOR_GREEN "%zu" COLOR_RESET "\n", output_language == OUTPUT_JA ? "追跡ユーザー数" : "Unique users tracked", users.count);
         print_user_stats(&users);
         print_post_failure_success_alerts(&failure_events, &success_events);
         print_risk_assessment(&failure_events, &success_events);
@@ -346,7 +358,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
     }
 
     if (filter_mode != FILTER_ALL) {
-        printf("Matched filtered lines      : " COLOR_GREEN "%lu" COLOR_RESET "\n", filtered_lines);
+        printf("%s      : " COLOR_GREEN "%lu" COLOR_RESET "\n", output_language == OUTPUT_JA ? "一致したログ行数" : "Matched filtered lines", filtered_lines);
         free_ip_stats_list(&stats);
         free_failure_event_list(&failure_events);
         free_success_event_list(&success_events);
@@ -356,11 +368,11 @@ while (fgets(line, sizeof(line), fp) != NULL) {
 
     print_summary(&summary);
 
-    printf("\n===== Processing Stats =====\n");
-    printf("Total lines read           : " COLOR_GREEN "%lu" COLOR_RESET "\n", total_lines);
-    printf("Parsed auth lines          : " COLOR_GREEN "%lu" COLOR_RESET "\n", parsed_lines);
-    printf("Ignored lines              : " COLOR_YELLOW "%lu" COLOR_RESET "\n", ignored_lines);
-    printf("Unique IPs tracked         : " COLOR_RED "%zu" COLOR_RESET "\n", stats.count);
+    printf("\n===== %s =====\n", output_language == OUTPUT_JA ? "処理統計" : "Processing Stats");
+    printf("%s           : " COLOR_GREEN "%lu" COLOR_RESET "\n", output_language == OUTPUT_JA ? "読み込んだ行数" : "Total lines read", total_lines);
+    printf("%s          : " COLOR_GREEN "%lu" COLOR_RESET "\n", output_language == OUTPUT_JA ? "解析対象行数" : "Parsed auth lines", parsed_lines);
+    printf("%s              : " COLOR_YELLOW "%lu" COLOR_RESET "\n", output_language == OUTPUT_JA ? "無視された行数" : "Ignored lines", ignored_lines);
+    printf("%s         : " COLOR_RED "%zu" COLOR_RESET "\n", output_language == OUTPUT_JA ? "追跡IP数" : "Unique IPs tracked", stats.count);
 
     print_ip_stats(&stats);
     print_bruteforce_alerts(&failure_events);

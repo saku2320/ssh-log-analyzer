@@ -12,6 +12,24 @@
 #define CRITICAL_FAILURE_THRESHOLD 10
 #define CRITICAL_SUCCESS_WINDOW_SECONDS 1800
 
+static OutputLanguage report_language = OUTPUT_EN;
+
+void set_report_language(OutputLanguage language) {
+    report_language = language;
+}
+
+static int is_ja(void) {
+    return report_language == OUTPUT_JA;
+}
+
+static const char *not_recorded_text(void) {
+    return is_ja() ? "(記録なし)" : "(not recorded)";
+}
+
+static const char *unknown_text(void) {
+    return is_ja() ? "(不明)" : "(unknown)";
+}
+
 typedef struct {
     int window_seconds;
     int failure_threshold;
@@ -65,7 +83,7 @@ static void sort_by_success_count_desc(IpStats stats[], size_t count) {
 
 static const char *geo_display_value(const char *value) {
     if (value[0] == '\0') {
-        return "(not recorded)";
+        return not_recorded_text();
     }
 
     return value;
@@ -107,9 +125,9 @@ static void print_alert_users(const FailureEventList *list, size_t start, size_t
         }
     }
 
-    printf("Users      : ");
+    printf("%s      : ", is_ja() ? "ユーザー" : "Users");
     if (user_count == 0) {
-        printf("(unknown)");
+        printf("%s", unknown_text());
     } else {
         for (i = 0; i < user_count; i++) {
             if (i > 0) {
@@ -122,10 +140,11 @@ static void print_alert_users(const FailureEventList *list, size_t start, size_t
 }
 
 static void print_bruteforce_alert(const FailureEventList *list, const char *ip, size_t start, size_t end, int failures) {
-    printf(COLOR_BOLD COLOR_RED "[ALERT] SSH brute-force suspected" COLOR_RESET "\n");
-    printf("IP Address : %s\n", ip);
-    printf("Period     : %s - %s\n", list->items[start].time_text, list->items[end].time_text);
-    printf("Failures   : %d\n", failures);
+    printf(COLOR_BOLD COLOR_RED "[ALERT] %s" COLOR_RESET "\n",
+           is_ja() ? "SSHブルートフォース攻撃の疑い" : "SSH brute-force suspected");
+    printf("%s : %s\n", is_ja() ? "IPアドレス" : "IP Address", ip);
+    printf("%s     : %s - %s\n", is_ja() ? "期間" : "Period", list->items[start].time_text, list->items[end].time_text);
+    printf("%s   : %d\n", is_ja() ? "失敗回数" : "Failures", failures);
     print_alert_users(list, start, end, ip);
     printf("\n");
 }
@@ -190,10 +209,11 @@ void print_bruteforce_alerts(const FailureEventList *list) {
     int alert_count;
     int found = 0;
 
-    printf("\n" COLOR_BOLD COLOR_RED "===== Brute-force Alerts =====" COLOR_RESET "\n");
+    printf("\n" COLOR_BOLD COLOR_RED "===== %s =====" COLOR_RESET "\n",
+           is_ja() ? "ブルートフォース警告" : "Brute-force Alerts");
 
     if (list->count == 0) {
-        printf("No timestamped failed login events found.\n");
+        printf("%s\n", is_ja() ? "時刻付きの失敗ログは見つかりませんでした。" : "No timestamped failed login events found.");
         return;
     }
 
@@ -227,7 +247,7 @@ void print_bruteforce_alerts(const FailureEventList *list) {
     }
 
     if (!found) {
-        printf("No brute-force patterns found.\n");
+        printf("%s\n", is_ja() ? "ブルートフォース攻撃のパターンは見つかりませんでした。" : "No brute-force patterns found.");
     }
 }
 
@@ -256,27 +276,29 @@ void print_post_failure_success_alerts(const FailureEventList *failures, const S
     int failed_count;
     int found = 0;
 
-    printf("\n" COLOR_BOLD COLOR_RED "===== Post-failure Login Success Alerts =====" COLOR_RESET "\n");
+    printf("\n" COLOR_BOLD COLOR_RED "===== %s =====" COLOR_RESET "\n",
+           is_ja() ? "失敗後ログイン成功警告" : "Post-failure Login Success Alerts");
 
     if (failures->count == 0 || successes->count == 0) {
-        printf("No timestamped failure/success pairs found.\n");
+        printf("%s\n", is_ja() ? "時刻付きの失敗ログと成功ログの組み合わせは見つかりませんでした。" : "No timestamped failure/success pairs found.");
         return;
     }
 
     for (i = 0; i < successes->count; i++) {
         failed_count = count_failures_before_success(failures, &successes->items[i]);
         if (failed_count >= CRITICAL_FAILURE_THRESHOLD) {
-            printf(COLOR_BOLD COLOR_RED "[CRITICAL] Login succeeded after repeated failures" COLOR_RESET "\n");
-            printf("IP Address    : %s\n", successes->items[i].ip);
-            printf("User          : %s\n", successes->items[i].user);
-            printf("Failed Count  : %d\n", failed_count);
-            printf("Success Time  : %s\n\n", successes->items[i].timestamp_text);
+            printf(COLOR_BOLD COLOR_RED "[CRITICAL] %s" COLOR_RESET "\n",
+                   is_ja() ? "繰り返し失敗後にログイン成功" : "Login succeeded after repeated failures");
+            printf("%s    : %s\n", is_ja() ? "IPアドレス" : "IP Address", successes->items[i].ip);
+            printf("%s          : %s\n", is_ja() ? "ユーザー" : "User", successes->items[i].user);
+            printf("%s  : %d\n", is_ja() ? "失敗回数" : "Failed Count", failed_count);
+            printf("%s  : %s\n\n", is_ja() ? "成功時刻" : "Success Time", successes->items[i].timestamp_text);
             found = 1;
         }
     }
 
     if (!found) {
-        printf("No successful logins after repeated failures found.\n");
+        printf("%s\n", is_ja() ? "繰り返し失敗後のログイン成功は見つかりませんでした。" : "No successful logins after repeated failures found.");
     }
 }
 
@@ -362,21 +384,21 @@ static void print_risk_reasons(int best_five_min_failures,
                                int has_invalid_user,
                                int unique_users,
                                int has_post_failure_success) {
-    printf("Reasons:\n");
+    printf("%s:\n", is_ja() ? "理由" : "Reasons");
     if (best_five_min_failures >= 10) {
-        printf("- %d failed logins within 5 minutes\n", best_five_min_failures);
+        printf(is_ja() ? "- 5分以内に%d回ログイン失敗\n" : "- %d failed logins within 5 minutes\n", best_five_min_failures);
     }
     if (has_root) {
-        printf("- Root account targeted\n");
+        printf("%s\n", is_ja() ? "- rootアカウントが狙われました" : "- Root account targeted");
     }
     if (has_invalid_user) {
-        printf("- Invalid user login attempts detected\n");
+        printf("%s\n", is_ja() ? "- 存在しないユーザーへの試行を検出" : "- Invalid user login attempts detected");
     }
     if (unique_users >= 10) {
-        printf("- %d different users targeted\n", unique_users);
+        printf(is_ja() ? "- %d人の異なるユーザーが狙われました\n" : "- %d different users targeted\n", unique_users);
     }
     if (has_post_failure_success) {
-        printf("- Successful login after repeated failures\n");
+        printf("%s\n", is_ja() ? "- 繰り返し失敗後にログイン成功" : "- Successful login after repeated failures");
     }
 }
 
@@ -392,10 +414,11 @@ void print_risk_assessment(const FailureEventList *failures, const SuccessEventL
     int score;
     int found = 0;
 
-    printf("\n" COLOR_BOLD COLOR_RED "===== Risk Assessment (HIGH/CRITICAL) =====" COLOR_RESET "\n");
+    printf("\n" COLOR_BOLD COLOR_RED "===== %s =====" COLOR_RESET "\n",
+           is_ja() ? "Risk Assessment (HIGH/CRITICAL)" : "Risk Assessment (HIGH/CRITICAL)");
 
     if (failures->count == 0) {
-        printf("No failed login events found for risk scoring.\n");
+        printf("%s\n", is_ja() ? "危険度スコア算出対象の失敗ログは見つかりませんでした。" : "No failed login events found for risk scoring.");
         return;
     }
 
@@ -431,9 +454,9 @@ void print_risk_assessment(const FailureEventList *failures, const SuccessEventL
         }
 
         if (score >= 60) {
-            printf("Risk Level : %s\n", risk_level(score));
-            printf("Risk Score : %d\n", score);
-            printf("IP Address : %s\n", failures->items[i].ip);
+            printf("%s : %s\n", is_ja() ? "Risk Level" : "Risk Level", risk_level(score));
+            printf("%s : %d\n", is_ja() ? "Risk Score" : "Risk Score", score);
+            printf("%s : %s\n", is_ja() ? "IPアドレス" : "IP Address", failures->items[i].ip);
             print_risk_reasons(best_count,
                                has_root,
                                has_invalid_user,
@@ -445,29 +468,34 @@ void print_risk_assessment(const FailureEventList *failures, const SuccessEventL
     }
 
     if (!found) {
-        printf("No HIGH or CRITICAL risks found.\n");
+        printf("%s\n", is_ja() ? "HIGHまたはCRITICALの危険度は見つかりませんでした。" : "No HIGH or CRITICAL risks found.");
     }
 }
 
 void print_summary(const Summary *summary) {
-    printf("===== SSH Log Analysis Result =====\n");
-    printf("Total failed login attempts : " COLOR_RED "%d" COLOR_RESET "\n", summary->total_failed);
-    printf("Total successful logins     : " COLOR_GREEN "%d" COLOR_RESET "\n", summary->total_success);
-    printf("Root login attempts         : " COLOR_YELLOW "%d" COLOR_RESET "\n", summary->root_attempts);
-    printf("sudo command executions     : " COLOR_YELLOW "%d" COLOR_RESET "\n", summary->sudo_commands);
-    printf("su command executions       : " COLOR_YELLOW "%d" COLOR_RESET "\n", summary->su_commands);
+    printf("===== %s =====\n", is_ja() ? "SSHログ分析結果" : "SSH Log Analysis Result");
+    printf("%s : " COLOR_RED "%d" COLOR_RESET "\n", is_ja() ? "ログイン失敗合計" : "Total failed login attempts", summary->total_failed);
+    printf("%s     : " COLOR_GREEN "%d" COLOR_RESET "\n", is_ja() ? "ログイン成功合計" : "Total successful logins", summary->total_success);
+    printf("%s         : " COLOR_YELLOW "%d" COLOR_RESET "\n", is_ja() ? "rootログイン試行" : "Root login attempts", summary->root_attempts);
+    printf("%s     : " COLOR_YELLOW "%d" COLOR_RESET "\n", is_ja() ? "sudoコマンド実行" : "sudo command executions", summary->sudo_commands);
+    printf("%s       : " COLOR_YELLOW "%d" COLOR_RESET "\n", is_ja() ? "suコマンド実行" : "su command executions", summary->su_commands);
 }
 
 void print_ip_stats(const IpStatsList *list) {
     size_t i;
 
-    printf("\n===== IP Statistics =====\n");
+    printf("\n===== %s =====\n", is_ja() ? "IP統計" : "IP Statistics");
     for (i = 0; i < list->count; i++) {
-        printf("IP: %-15s | Country: %-15s | Region: %-15s | Failed: %-3d | Success: %-3d\n",
+        printf("%s: %-15s | %s: %-15s | %s: %-15s | %s: %-3d | %s: %-3d\n",
+               is_ja() ? "IP" : "IP",
                list->items[i].ip,
+               is_ja() ? "国" : "Country",
                geo_display_value(list->items[i].country),
+               is_ja() ? "地域" : "Region",
                geo_display_value(list->items[i].region),
+               is_ja() ? "失敗" : "Failed",
                list->items[i].failed_count,
+               is_ja() ? "成功" : "Success",
                list->items[i].success_count);
     }
 }
@@ -476,11 +504,12 @@ void print_geo_warnings(const IpStatsList *list) {
     size_t i;
     int found = 0;
 
-    printf("\n" COLOR_BOLD COLOR_YELLOW "===== Geo Location Warnings =====" COLOR_RESET "\n");
+    printf("\n" COLOR_BOLD COLOR_YELLOW "===== %s =====" COLOR_RESET "\n",
+           is_ja() ? "国・地域警告" : "Geo Location Warnings");
 
     for (i = 0; i < list->count; i++) {
         if (has_geo(&list->items[i])) {
-            printf("- %s: country=%s, region=%s\n",
+            printf(is_ja() ? "- %s: 国=%s, 地域=%s\n" : "- %s: country=%s, region=%s\n",
                    list->items[i].ip,
                    geo_display_value(list->items[i].country),
                    geo_display_value(list->items[i].region));
@@ -489,7 +518,7 @@ void print_geo_warnings(const IpStatsList *list) {
     }
 
     if (!found) {
-        printf("No country/region information recorded in log.\n");
+        printf("%s\n", is_ja() ? "ログに国・地域情報は記録されていません。" : "No country/region information recorded in log.");
     }
 }
 
@@ -497,11 +526,13 @@ void print_suspicious_ips(const IpStatsList *list, int threshold) {
     size_t i;
     int found = 0;
 
-    printf("\n" COLOR_BOLD COLOR_RED "===== Suspicious IPs (failed >= %d) =====" COLOR_RESET "\n", threshold);
+    printf("\n" COLOR_BOLD COLOR_RED "===== ");
+    printf(is_ja() ? "不審IP (失敗 >= %d)" : "Suspicious IPs (failed >= %d)", threshold);
+    printf(" =====" COLOR_RESET "\n");
 
     for (i = 0; i < list->count; i++) {
         if (list->items[i].failed_count >= threshold) {
-            printf("- %s (%d failed attempts, country=%s, region=%s)\n",
+            printf(is_ja() ? "- %s (%d回失敗, 国=%s, 地域=%s)\n" : "- %s (%d failed attempts, country=%s, region=%s)\n",
                    list->items[i].ip,
                    list->items[i].failed_count,
                    geo_display_value(list->items[i].country),
@@ -511,7 +542,7 @@ void print_suspicious_ips(const IpStatsList *list, int threshold) {
     }
 
     if (!found) {
-        printf("No suspicious IPs found.\n");
+        printf("%s\n", is_ja() ? "不審IPは見つかりませんでした。" : "No suspicious IPs found.");
     }
 }
 
@@ -520,16 +551,18 @@ void print_top_failed_ips(const IpStatsList *list, int top_n) {
     size_t i;
     int rank = 0;
 
-    printf("\n" COLOR_BOLD COLOR_RED "===== Top %d Failed IPs =====" COLOR_RESET "\n", top_n);
+    printf("\n" COLOR_BOLD COLOR_RED "===== ");
+    printf(is_ja() ? "失敗IP Top %d" : "Top %d Failed IPs", top_n);
+    printf(" =====" COLOR_RESET "\n");
 
     if (list->count == 0) {
-        printf("No failed login IPs found.\n");
+        printf("%s\n", is_ja() ? "失敗ログのIPは見つかりませんでした。" : "No failed login IPs found.");
         return;
     }
 
     sorted_stats = malloc(list->count * sizeof(IpStats));
     if (sorted_stats == NULL) {
-        printf("Failed to allocate memory for ranking.\n");
+        printf("%s\n", is_ja() ? "ランキング用メモリの確保に失敗しました。" : "Failed to allocate memory for ranking.");
         return;
     }
 
@@ -539,7 +572,7 @@ void print_top_failed_ips(const IpStatsList *list, int top_n) {
     for (i = 0; i < list->count && rank < top_n; i++) {
         if (sorted_stats[i].failed_count > 0) {
             rank++;
-            printf("%d. %s (%d failed attempts, country=%s, region=%s)\n",
+            printf(is_ja() ? "%d. %s (%d回失敗, 国=%s, 地域=%s)\n" : "%d. %s (%d failed attempts, country=%s, region=%s)\n",
                    rank,
                    sorted_stats[i].ip,
                    sorted_stats[i].failed_count,
@@ -549,7 +582,7 @@ void print_top_failed_ips(const IpStatsList *list, int top_n) {
     }
 
     if (rank == 0) {
-        printf("No failed login IPs found.\n");
+        printf("%s\n", is_ja() ? "失敗ログのIPは見つかりませんでした。" : "No failed login IPs found.");
     }
 
     free(sorted_stats);
@@ -560,16 +593,18 @@ void print_top_successful_ips(const IpStatsList *list, int top_n) {
     size_t i;
     int rank = 0;
 
-    printf("\n" COLOR_BOLD COLOR_GREEN "===== Top %d Successful IPs =====" COLOR_RESET "\n", top_n);
+    printf("\n" COLOR_BOLD COLOR_GREEN "===== ");
+    printf(is_ja() ? "成功IP Top %d" : "Top %d Successful IPs", top_n);
+    printf(" =====" COLOR_RESET "\n");
 
     if (list->count == 0) {
-        printf("No successful login IPs found.\n");
+        printf("%s\n", is_ja() ? "成功ログのIPは見つかりませんでした。" : "No successful login IPs found.");
         return;
     }
 
     sorted_stats = malloc(list->count * sizeof(IpStats));
     if (sorted_stats == NULL) {
-        printf("Failed to allocate memory for ranking.\n");
+        printf("%s\n", is_ja() ? "ランキング用メモリの確保に失敗しました。" : "Failed to allocate memory for ranking.");
         return;
     }
 
@@ -579,7 +614,7 @@ void print_top_successful_ips(const IpStatsList *list, int top_n) {
     for (i = 0; i < list->count && rank < top_n; i++) {
         if (sorted_stats[i].success_count > 0) {
             rank++;
-            printf("%d. %s (%d successful logins, country=%s, region=%s)\n",
+            printf(is_ja() ? "%d. %s (%d回成功, 国=%s, 地域=%s)\n" : "%d. %s (%d successful logins, country=%s, region=%s)\n",
                    rank,
                    sorted_stats[i].ip,
                    sorted_stats[i].success_count,
@@ -589,7 +624,7 @@ void print_top_successful_ips(const IpStatsList *list, int top_n) {
     }
 
     if (rank == 0) {
-        printf("No successful login IPs found.\n");
+        printf("%s\n", is_ja() ? "成功ログのIPは見つかりませんでした。" : "No successful login IPs found.");
     }
 
     free(sorted_stats);
@@ -602,11 +637,14 @@ void print_top_successful_ips(const IpStatsList *list, int top_n) {
 void print_user_stats(const UserStatsList *list) {
     size_t i;
 
-    printf("\n===== User Statistics =====\n");
+    printf("\n===== %s =====\n", is_ja() ? "ユーザー統計" : "User Statistics");
     for (i = 0; i < list->count; i++) {
-        printf("User: %-15s | Failed: %-3d | Success: %-3d\n",
+        printf("%s: %-15s | %s: %-3d | %s: %-3d\n",
+               is_ja() ? "ユーザー" : "User",
                list->items[i].user,
+               is_ja() ? "失敗" : "Failed",
                list->items[i].failed_count,
+               is_ja() ? "成功" : "Success",
                list->items[i].success_count);
     }
 }
@@ -660,16 +698,18 @@ void print_top_targeted_users(const UserStatsList *list, int top_n) {
     size_t i;
     int rank = 0;
 
-    printf("\n" COLOR_BOLD COLOR_RED "===== Top %d Targeted Users =====" COLOR_RESET "\n", top_n);
+    printf("\n" COLOR_BOLD COLOR_RED "===== ");
+    printf(is_ja() ? "狙われたユーザー Top %d" : "Top %d Targeted Users", top_n);
+    printf(" =====" COLOR_RESET "\n");
 
     if (list->count == 0) {
-        printf("No targeted users found.\n");
+        printf("%s\n", is_ja() ? "狙われたユーザーは見つかりませんでした。" : "No targeted users found.");
         return;
     }
 
     sorted_users = malloc(list->count * sizeof(UserStats));
     if (sorted_users == NULL) {
-        printf("Failed to allocate memory for user ranking.\n");
+        printf("%s\n", is_ja() ? "ユーザーランキング用メモリの確保に失敗しました。" : "Failed to allocate memory for user ranking.");
         return;
     }
 
@@ -679,7 +719,7 @@ void print_top_targeted_users(const UserStatsList *list, int top_n) {
     for (i = 0; i < list->count && rank < top_n; i++) {
         if (sorted_users[i].failed_count > 0) {
             rank++;
-            printf("%d. %s (%d failed attempts)\n",
+            printf(is_ja() ? "%d. %s (%d回失敗)\n" : "%d. %s (%d failed attempts)\n",
                    rank,
                    sorted_users[i].user,
                    sorted_users[i].failed_count);
@@ -687,7 +727,7 @@ void print_top_targeted_users(const UserStatsList *list, int top_n) {
     }
 
     if (rank == 0) {
-        printf("No targeted users found.\n");
+        printf("%s\n", is_ja() ? "狙われたユーザーは見つかりませんでした。" : "No targeted users found.");
     }
 
     free(sorted_users);
@@ -698,16 +738,18 @@ void print_top_successful_users(const UserStatsList *list, int top_n) {
     size_t i;
     int rank = 0;
 
-    printf("\n" COLOR_BOLD COLOR_GREEN "===== Top %d Successful Users =====" COLOR_RESET "\n", top_n);
+    printf("\n" COLOR_BOLD COLOR_GREEN "===== ");
+    printf(is_ja() ? "成功ユーザー Top %d" : "Top %d Successful Users", top_n);
+    printf(" =====" COLOR_RESET "\n");
 
     if (list->count == 0) {
-        printf("No successful login users found.\n");
+        printf("%s\n", is_ja() ? "成功ログのユーザーは見つかりませんでした。" : "No successful login users found.");
         return;
     }
 
     sorted_users = malloc(list->count * sizeof(UserStats));
     if (sorted_users == NULL) {
-        printf("Failed to allocate memory for user ranking.\n");
+        printf("%s\n", is_ja() ? "ユーザーランキング用メモリの確保に失敗しました。" : "Failed to allocate memory for user ranking.");
         return;
     }
 
@@ -717,7 +759,7 @@ void print_top_successful_users(const UserStatsList *list, int top_n) {
     for (i = 0; i < list->count && rank < top_n; i++) {
         if (sorted_users[i].success_count > 0) {
             rank++;
-            printf("%d. %s (%d successful logins)\n",
+            printf(is_ja() ? "%d. %s (%d回成功)\n" : "%d. %s (%d successful logins)\n",
                    rank,
                    sorted_users[i].user,
                    sorted_users[i].success_count);
@@ -725,7 +767,7 @@ void print_top_successful_users(const UserStatsList *list, int top_n) {
     }
 
     if (rank == 0) {
-        printf("No successful login users found.\n");
+        printf("%s\n", is_ja() ? "成功ログのユーザーは見つかりませんでした。" : "No successful login users found.");
     }
 
     free(sorted_users);

@@ -123,6 +123,7 @@ make re
 ## 実行方法
 ```bash
 make run
+make run ja
 ```
 
 #### フィルタ実行例
@@ -136,6 +137,7 @@ make run failed ip
 make run failed user
 make run success ip
 make run success user
+make run failed ip ja
 ```
 
 使用できるフィルタ条件
@@ -152,6 +154,10 @@ make run success user
 `failed` のような単体フィルタを指定した場合は、条件に一致したログ行と一致件数のみを出力する。
 `failed ip` や `success user` のように種類を追加した場合は、指定した集計セクションのみを出力する。
 フィルタを指定しない場合は、すべての集計結果を出力する。
+
+すべての既存コマンドは、末尾に `ja` を付けることで日本語出力に切り替えられる。
+`ja` を付けた場合も、ユーザー名、IP、時刻、ログ原文などログ由来の内容はそのままに、見出しや項目名、説明文を日本語で出力する。
+`[ALERT]`、`[CRITICAL]`、`Risk Assessment`、`Risk Level`、`Risk Score`、`LOW`、`MEDIUM`、`HIGH`、`CRITICAL` など、単独で表示される英語ラベルは見やすさのため英語のまま出力する。
 
 ブルートフォース警告では、同一IPについて `1分以内に10回`、`5分以内に30回`、`10分以内に50回` のいずれかを満たす失敗ログを検出する。
 複数条件に該当する場合は、そのIPで最も広い条件に該当した代表区間を表示する。
@@ -186,4 +192,5 @@ gcc -Wall -Wextra -std=c11 -o ssh_log_analyzer src/main.c src/analyzer.c src/par
 ./ssh_log_analyzer sample_log/auth.log failed user
 ./ssh_log_analyzer sample_log/auth.log success ip
 ./ssh_log_analyzer sample_log/auth.log success user
+./ssh_log_analyzer sample_log/auth.log failed ip ja
 ```
