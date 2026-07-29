@@ -44,6 +44,9 @@ ssh-log-analyzer$ tree
 - 検出されたIPの総数
 #### IP統計
 - 検出された全IPごとの国・地域、成功・失敗回数（国・地域はログに記録がある場合のみ）
+#### IP単位の時系列表示
+- 指定したIPに関連するSSH失敗、SSH成功、sudo/su実行を時刻順にタイムライン形式で出力
+- sudo/suはauth.log上に接続元IPが直接残らないため、指定IPからログイン成功したユーザーの操作として推定できる範囲で表示
 #### 国・地域警告
 - 接続元IPに紐づく国・地域情報がログに記録されている場合、そのIPと国・地域を警告表示
 #### ブルートフォース警告
@@ -133,6 +136,7 @@ make run success
 make run root
 make run sudo
 make run su
+make run ip=192.0.2.10
 make run failed ip
 make run failed user
 make run success ip
@@ -146,6 +150,7 @@ make run failed ip ja
 - `root`: rootログイン試行のみ出力
 - `sudo`: sudoコマンド実行ログと詳細情報を出力
 - `su`: suコマンド実行ログとauth.logから分かる範囲の詳細情報を出力
+- `ip=<IPアドレス>`: 指定IPのSSH失敗・SSH成功・sudo/su実行を時系列で出力
 - `failed ip`: `Unique IPs tracked`、`Brute-force Alerts`、`Post-failure Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Failed IPs`を出力
 - `failed user`: `Unique users tracked`、`User Statistics`、`Brute-force Alerts`、`Post-failure Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Targeted Users`を出力
 - `success ip`: `Unique IPs tracked`、`IP Statistics`、`Post-failure Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Successful IPs`を出力
@@ -154,6 +159,19 @@ make run failed ip ja
 `failed` のような単体フィルタを指定した場合は、条件に一致したログ行と一致件数のみを出力する。
 `failed ip` や `success user` のように種類を追加した場合は、指定した集計セクションのみを出力する。
 フィルタを指定しない場合は、すべての集計結果を出力する。
+
+`ip=<IPアドレス>` を指定した場合は、通常の集計結果ではなく、指定IPに関する大まかな時系列のみを出力する。
+出力例:
+
+```text
+IP: 192.0.2.10
+
+10:01:02 Failed password for root
+10:01:05 Failed password for admin
+10:01:09 Failed password for test
+10:01:15 Accepted password for user1
+10:03:22 sudo COMMAND=/bin/bash
+```
 
 すべての既存コマンドは、末尾に `ja` を付けることで日本語出力に切り替えられる。
 `ja` を付けた場合も、ユーザー名、IP、時刻、ログ原文などログ由来の内容はそのままに、見出しや項目名、説明文を日本語で出力する。
@@ -196,6 +214,7 @@ gcc -Wall -Wextra -std=c11 -o ssh_log_analyzer src/main.c src/analyzer.c src/par
 ./ssh_log_analyzer sample_log/auth.log failed
 ./ssh_log_analyzer sample_log/auth.log sudo
 ./ssh_log_analyzer sample_log/auth.log su
+./ssh_log_analyzer sample_log/auth.log ip=192.0.2.10
 ./ssh_log_analyzer sample_log/auth.log failed ip
 ./ssh_log_analyzer sample_log/auth.log failed user
 ./ssh_log_analyzer sample_log/auth.log success ip
