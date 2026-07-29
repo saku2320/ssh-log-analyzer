@@ -32,6 +32,14 @@ typedef struct {
     size_t count;
 } TargetUserList;
 
+typedef struct {
+    unsigned long total_events;
+    unsigned long failed_count;
+    unsigned long success_count;
+    unsigned long sudo_count;
+    unsigned long su_count;
+} IpTimelineStats;
+
 static void print_usage(const char *program_name) {
     fprintf(stderr, "Usage: %s <logfile> [failed|success|root|sudo|su] [ja]\n", program_name);
     fprintf(stderr, "       %s <logfile> [failed|success] [ip|user] [ja]\n", program_name);
@@ -216,46 +224,80 @@ static const char *entry_time_display(const LogEntry *entry) {
     return entry->has_timestamp ? entry->time_text : "--:--:--";
 }
 
-static void print_ip_timeline_header(const char *target_ip, OutputLanguage language) {
-    printf(language == OUTPUT_JA ? "IP: %s\n\n" : "IP: %s\n\n", target_ip);
+static void init_ip_timeline_stats(IpTimelineStats *timeline_stats) {
+    timeline_stats->total_events = 0;
+    timeline_stats->failed_count = 0;
+    timeline_stats->success_count = 0;
+    timeline_stats->sudo_count = 0;
+    timeline_stats->su_count = 0;
 }
 
-static int print_ip_timeline_entry(const LogEntry *entry,
-                                   const char *target_ip,
-                                   TargetUserList *target_users,
-                                   OutputLanguage language) {
+static void print_ip_timeline_header(const char *target_ip,
+                                     const IpTimelineStats *timeline_stats,
+                                     OutputLanguage language) {
+    (void)language;
+    printf("IP: %s\n\n", target_ip);
+    printf("アクセス総数 : %lu\n", timeline_stats->total_events);
+    printf("総成功回数   : %lu\n", timeline_stats->success_count);
+    printf("総失敗回数   : %lu\n", timeline_stats->failed_count);
+    printf("sudo総実行回数: %lu\n", timeline_stats->sudo_count);
+    printf("su総実行回数  : %lu\n\n", timeline_stats->su_count);
+}
+
+static int handle_ip_timeline_entry(const LogEntry *entry,
+                                    const char *target_ip,
+                                    TargetUserList *target_users,
+                                    IpTimelineStats *timeline_stats,
+                                    OutputLanguage language,
+                                    int should_print) {
     if (entry->ip[0] != '\0' && strcmp(entry->ip, target_ip) == 0) {
         if (entry->is_failed) {
-            if (entry->user[0] == '\0') {
-                printf("%s Authentication failure\n", entry_time_display(entry));
-            } else {
-                printf("%s Failed password for %s\n",
-                       entry_time_display(entry),
-                       display_value(entry->user, language));
+            timeline_stats->total_events++;
+            timeline_stats->failed_count++;
+            if (should_print) {
+                if (entry->user[0] == '\0') {
+                    printf("%s Authentication failure\n", entry_time_display(entry));
+                } else {
+                    printf("%s Failed password for %s\n",
+                           entry_time_display(entry),
+                           display_value(entry->user, language));
+                }
             }
             return 1;
         }
 
         if (entry->is_success) {
-            printf("%s Accepted password for %s\n",
-                   entry_time_display(entry),
-                   display_value(entry->user, language));
+            timeline_stats->total_events++;
+            timeline_stats->success_count++;
+            if (should_print) {
+                printf("%s Accepted password for %s\n",
+                       entry_time_display(entry),
+                       display_value(entry->user, language));
+            }
             track_target_user(target_users, entry->user);
             return 1;
         }
     }
 
     if (entry->is_sudo && target_user_is_tracked(target_users, entry->sudo_user)) {
-        printf("%s sudo COMMAND=%s\n",
-               entry_time_display(entry),
-               display_value(entry->command, language));
+        timeline_stats->total_events++;
+        timeline_stats->sudo_count++;
+        if (should_print) {
+            printf("%s sudo COMMAND=%s\n",
+                   entry_time_display(entry),
+                   display_value(entry->command, language));
+        }
         return 1;
     }
 
     if (entry->is_su && target_user_is_tracked(target_users, entry->su_login_user)) {
-        printf("%s su to %s\n",
-               entry_time_display(entry),
-               display_value(entry->su_target_user, language));
+        timeline_stats->total_events++;
+        timeline_stats->su_count++;
+        if (should_print) {
+            printf("%s su to %s\n",
+                   entry_time_display(entry),
+                   display_value(entry->su_target_user, language));
+        }
         return 1;
     }
 
@@ -277,6 +319,8 @@ int main(int argc, char *argv[]) {
     OutputLanguage output_language = OUTPUT_EN;
     const char *target_ip = NULL;
     TargetUserList target_users;
+    IpTimelineStats timeline_stats;
+    IpTimelineStats print_timeline_stats;
     unsigned long timeline_lines = 0;
     unsigned long filtered_lines = 0;
     int i;
@@ -311,6 +355,8 @@ int main(int argc, char *argv[]) {
 
     set_report_language(output_language);
     target_users.count = 0;
+    init_ip_timeline_stats(&timeline_stats);
+    init_ip_timeline_stats(&print_timeline_stats);
 
     if (report_mode != REPORT_NONE && filter_mode != FILTER_FAILED && filter_mode != FILTER_SUCCESS) {
         fprintf(stderr, "Report mode must be used with failed or success.\n");
@@ -338,9 +384,7 @@ int main(int argc, char *argv[]) {
 
     init_user_stats_list(&users);
 
-    if (target_ip != NULL) {
-        print_ip_timeline_header(target_ip, output_language);
-    } else if (filter_mode != FILTER_ALL && report_mode == REPORT_NONE) {
+    if (target_ip == NULL && filter_mode != FILTER_ALL && report_mode == REPORT_NONE) {
         printf("===== %s (%s) =====\n",
                output_language == OUTPUT_JA ? "フィルタ済みログ行" : "Filtered Log Lines",
                filter_label(filter_mode, output_language));
@@ -354,7 +398,12 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         update_summary(&summary, &entry);
 
         if (target_ip != NULL) {
-            if (print_ip_timeline_entry(&entry, target_ip, &target_users, output_language)) {
+            if (handle_ip_timeline_entry(&entry,
+                                         target_ip,
+                                         &target_users,
+                                         &timeline_stats,
+                                         output_language,
+                                         0)) {
                 timeline_lines++;
             }
         } else if (report_mode == REPORT_NONE && entry_matches_filter(&entry, filter_mode)) {
@@ -407,18 +456,40 @@ while (fgets(line, sizeof(line), fp) != NULL) {
 }
 
 
-    fclose(fp);
-
     if (target_ip != NULL) {
+        print_ip_timeline_header(target_ip, &timeline_stats, output_language);
         if (timeline_lines == 0) {
             printf("%s\n", output_language == OUTPUT_JA ? "対象IPのログは見つかりませんでした。" : "No timeline events found for this IP.");
+        } else if (fseek(fp, 0, SEEK_SET) != 0) {
+            perror("Failed to rewind file");
+            fclose(fp);
+            free_ip_stats_list(&stats);
+            free_failure_event_list(&failure_events);
+            free_success_event_list(&success_events);
+            free_user_stats_list(&users);
+            return 1;
+        } else {
+            target_users.count = 0;
+            while (fgets(line, sizeof(line), fp) != NULL) {
+                if (parse_log_line(line, &entry)) {
+                    (void)handle_ip_timeline_entry(&entry,
+                                                   target_ip,
+                                                   &target_users,
+                                                   &print_timeline_stats,
+                                                   output_language,
+                                                   1);
+                }
+            }
         }
+        fclose(fp);
         free_ip_stats_list(&stats);
         free_failure_event_list(&failure_events);
         free_success_event_list(&success_events);
         free_user_stats_list(&users);
         return 0;
     }
+
+    fclose(fp);
 
     if (report_mode == REPORT_IP && filter_mode == FILTER_FAILED) {
         printf("===== %s =====\n", output_language == OUTPUT_JA ? "失敗IPレポート" : "Failed IP Report");
