@@ -235,13 +235,20 @@ static void init_ip_timeline_stats(IpTimelineStats *timeline_stats) {
 static void print_ip_timeline_header(const char *target_ip,
                                      const IpTimelineStats *timeline_stats,
                                      OutputLanguage language) {
-    (void)language;
     printf("IP: %s\n\n", target_ip);
-    printf("アクセス総数 : %lu\n", timeline_stats->total_events);
-    printf("総成功回数   : %lu\n", timeline_stats->success_count);
-    printf("総失敗回数   : %lu\n", timeline_stats->failed_count);
-    printf("sudo総実行回数: %lu\n", timeline_stats->sudo_count);
-    printf("su総実行回数  : %lu\n\n", timeline_stats->su_count);
+    if (language == OUTPUT_JA) {
+        printf("アクセス総数 : %lu\n", timeline_stats->total_events);
+        printf("総成功回数   : %lu\n", timeline_stats->success_count);
+        printf("総失敗回数   : %lu\n", timeline_stats->failed_count);
+        printf("sudo総実行回数: %lu\n", timeline_stats->sudo_count);
+        printf("su総実行回数  : %lu\n\n", timeline_stats->su_count);
+    } else {
+        printf("Total access events : %lu\n", timeline_stats->total_events);
+        printf("Total successes     : %lu\n", timeline_stats->success_count);
+        printf("Total failures      : %lu\n", timeline_stats->failed_count);
+        printf("Total sudo commands : %lu\n", timeline_stats->sudo_count);
+        printf("Total su commands   : %lu\n\n", timeline_stats->su_count);
+    }
 }
 
 static int handle_ip_timeline_entry(const LogEntry *entry,
