@@ -102,11 +102,12 @@ static int user_is_listed(const char *users[], size_t user_count, const char *us
     return 0;
 }
 
-static void print_bruteforce_alert(const char *ip, const char *user, int failures) {
+static void print_bruteforce_alert(const FailureEventList *list, const char *ip, const char *user, size_t start, size_t end, int failures) {
     printf(COLOR_BOLD COLOR_RED "[ALERT] %s" COLOR_RESET "\n",
            is_ja() ? "SSHブルートフォース攻撃の疑い" : "SSH brute-force suspected");
     printf("%s: %s\n", is_ja() ? "IP" : "IP", ip);
     printf("%s: %s\n", is_ja() ? "ユーザー" : "User", user);
+    printf("%s: %s - %s\n", is_ja() ? "検知期間" : "Period", list->items[start].time_text, list->items[end].time_text);
     printf("%s: %d\n", is_ja() ? "失敗回数" : "Failures", failures);
     printf("\n");
 }
@@ -278,6 +279,8 @@ void print_bruteforce_alerts(const FailureEventList *list) {
     size_t rule_index;
     size_t best_start;
     size_t best_end;
+    size_t alert_start;
+    size_t alert_end;
     int best_count;
     int alert_count;
     int found = 0;
@@ -296,6 +299,8 @@ void print_bruteforce_alerts(const FailureEventList *list) {
         }
 
         alert_count = 0;
+        alert_start = 0;
+        alert_end = 0;
 
         for (rule_index = 0; rule_index < BRUTEFORCE_RULE_COUNT; rule_index++) {
             find_best_window_for_ip_user(list,
@@ -307,11 +312,13 @@ void print_bruteforce_alerts(const FailureEventList *list) {
                                          &best_count);
             if (best_count >= BRUTEFORCE_RULES[rule_index].failure_threshold) {
                 alert_count = best_count;
+                alert_start = best_start;
+                alert_end = best_end;
             }
         }
 
         if (alert_count > 0) {
-            print_bruteforce_alert(list->items[i].ip, list->items[i].user, alert_count);
+            print_bruteforce_alert(list, list->items[i].ip, list->items[i].user, alert_start, alert_end, alert_count);
             found = 1;
         }
     }
@@ -326,6 +333,8 @@ void print_password_spraying_alerts(const FailureEventList *list) {
     size_t rule_index;
     size_t best_start;
     size_t best_end;
+    size_t alert_start;
+    size_t alert_end;
     int best_failures;
     int best_unique_users;
     int alert_failures;
@@ -348,6 +357,8 @@ void print_password_spraying_alerts(const FailureEventList *list) {
 
         alert_failures = 0;
         alert_unique_users = 0;
+        alert_start = 0;
+        alert_end = 0;
 
         for (rule_index = 0; rule_index < BRUTEFORCE_RULE_COUNT; rule_index++) {
             find_best_spray_window_for_ip(list,
@@ -360,6 +371,8 @@ void print_password_spraying_alerts(const FailureEventList *list) {
             if (best_unique_users >= PASSWORD_SPRAY_UNIQUE_USER_THRESHOLD) {
                 alert_failures = best_failures;
                 alert_unique_users = best_unique_users;
+                alert_start = best_start;
+                alert_end = best_end;
             }
         }
 
@@ -368,6 +381,7 @@ void print_password_spraying_alerts(const FailureEventList *list) {
             printf(COLOR_BOLD COLOR_RED "[ALERT] %s" COLOR_RESET "\n",
                    is_ja() ? "SSHパスワードスプレー攻撃の疑い" : "SSH password spraying suspected");
             printf("%s: %s\n", is_ja() ? "IP" : "IP", list->items[i].ip);
+            printf("%s: %s - %s\n", is_ja() ? "検知期間" : "Period", list->items[alert_start].time_text, list->items[alert_end].time_text);
             printf("%s: %d\n", is_ja() ? "失敗回数" : "Failures", alert_failures);
             printf("%s: %d\n", is_ja() ? "ユニークユーザー数" : "Unique Users", alert_unique_users);
             printf("%s: ", is_ja() ? "ユーザーあたり平均失敗回数" : "Average failures per user");
