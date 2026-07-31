@@ -11,6 +11,7 @@
 #define BRUTEFORCE_RULE_COUNT 3
 #define CRITICAL_FAILURE_THRESHOLD 10
 #define CRITICAL_SUCCESS_WINDOW_SECONDS 1800
+#define PASSWORD_SPRAY_UNIQUE_USER_THRESHOLD 10
 
 static OutputLanguage report_language = OUTPUT_EN;
 
@@ -24,10 +25,6 @@ static int is_ja(void) {
 
 static const char *not_recorded_text(void) {
     return is_ja() ? "(記録なし)" : "(not recorded)";
-}
-
-static const char *unknown_text(void) {
-    return is_ja() ? "(不明)" : "(unknown)";
 }
 
 typedef struct {
@@ -105,47 +102,12 @@ static int user_is_listed(const char *users[], size_t user_count, const char *us
     return 0;
 }
 
-static void print_alert_users(const FailureEventList *list, size_t start, size_t end, const char *ip) {
-    const char *users[128];
-    size_t user_count = 0;
-    size_t i;
-
-    for (i = start; i <= end; i++) {
-        if (strcmp(list->items[i].ip, ip) != 0) {
-            continue;
-        }
-
-        if (list->items[i].user[0] == '\0') {
-            continue;
-        }
-
-        if (user_count < 128 && !user_is_listed(users, user_count, list->items[i].user)) {
-            users[user_count] = list->items[i].user;
-            user_count++;
-        }
-    }
-
-    printf("%s      : ", is_ja() ? "ユーザー" : "Users");
-    if (user_count == 0) {
-        printf("%s", unknown_text());
-    } else {
-        for (i = 0; i < user_count; i++) {
-            if (i > 0) {
-                printf(", ");
-            }
-            printf("%s", users[i]);
-        }
-    }
-    printf("\n");
-}
-
-static void print_bruteforce_alert(const FailureEventList *list, const char *ip, size_t start, size_t end, int failures) {
+static void print_bruteforce_alert(const char *ip, const char *user, int failures) {
     printf(COLOR_BOLD COLOR_RED "[ALERT] %s" COLOR_RESET "\n",
            is_ja() ? "SSHブルートフォース攻撃の疑い" : "SSH brute-force suspected");
-    printf("%s : %s\n", is_ja() ? "IPアドレス" : "IP Address", ip);
-    printf("%s     : %s - %s\n", is_ja() ? "期間" : "Period", list->items[start].time_text, list->items[end].time_text);
-    printf("%s   : %d\n", is_ja() ? "失敗回数" : "Failures", failures);
-    print_alert_users(list, start, end, ip);
+    printf("%s: %s\n", is_ja() ? "IP" : "IP", ip);
+    printf("%s: %s\n", is_ja() ? "ユーザー" : "User", user);
+    printf("%s: %d\n", is_ja() ? "失敗回数" : "Failures", failures);
     printf("\n");
 }
 
@@ -154,6 +116,19 @@ static int ip_already_checked(const FailureEventList *list, size_t current) {
 
     for (i = 0; i < current; i++) {
         if (strcmp(list->items[i].ip, list->items[current].ip) == 0) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static int ip_user_already_checked(const FailureEventList *list, size_t current) {
+    size_t i;
+
+    for (i = 0; i < current; i++) {
+        if (strcmp(list->items[i].ip, list->items[current].ip) == 0 &&
+            strcmp(list->items[i].user, list->items[current].user) == 0) {
             return 1;
         }
     }
@@ -198,13 +173,111 @@ static void find_best_window_for_ip(const FailureEventList *list,
     }
 }
 
+static void find_best_window_for_ip_user(const FailureEventList *list,
+                                         const char *ip,
+                                         const char *user,
+                                         int window_seconds,
+                                         size_t *best_start,
+                                         size_t *best_end,
+                                         int *best_count) {
+    size_t start;
+    size_t end;
+    int count;
+
+    *best_start = 0;
+    *best_end = 0;
+    *best_count = 0;
+
+    for (start = 0; start < list->count; start++) {
+        if (strcmp(list->items[start].ip, ip) != 0 ||
+            strcmp(list->items[start].user, user) != 0) {
+            continue;
+        }
+
+        count = 0;
+        for (end = start; end < list->count; end++) {
+            if (list->items[end].timestamp_seconds - list->items[start].timestamp_seconds > window_seconds) {
+                break;
+            }
+
+            if (strcmp(list->items[end].ip, ip) == 0 &&
+                strcmp(list->items[end].user, user) == 0) {
+                count++;
+                if (count > *best_count) {
+                    *best_count = count;
+                    *best_start = start;
+                    *best_end = end;
+                }
+            }
+        }
+    }
+}
+
+static void find_best_spray_window_for_ip(const FailureEventList *list,
+                                          const char *ip,
+                                          int window_seconds,
+                                          size_t *best_start,
+                                          size_t *best_end,
+                                          int *best_failures,
+                                          int *best_unique_users) {
+    size_t start;
+    size_t end;
+    const char *users[256];
+    size_t user_count;
+    int failures;
+
+    *best_start = 0;
+    *best_end = 0;
+    *best_failures = 0;
+    *best_unique_users = 0;
+
+    for (start = 0; start < list->count; start++) {
+        if (strcmp(list->items[start].ip, ip) != 0) {
+            continue;
+        }
+
+        failures = 0;
+        user_count = 0;
+        for (end = start; end < list->count; end++) {
+            if (list->items[end].timestamp_seconds - list->items[start].timestamp_seconds > window_seconds) {
+                break;
+            }
+
+            if (strcmp(list->items[end].ip, ip) == 0) {
+                failures++;
+                if (list->items[end].user[0] != '\0' &&
+                    user_count < 256 &&
+                    !user_is_listed(users, user_count, list->items[end].user)) {
+                    users[user_count] = list->items[end].user;
+                    user_count++;
+                }
+                if ((int)user_count > *best_unique_users ||
+                    ((int)user_count == *best_unique_users && failures > *best_failures)) {
+                    *best_unique_users = (int)user_count;
+                    *best_failures = failures;
+                    *best_start = start;
+                    *best_end = end;
+                }
+            }
+        }
+    }
+}
+
+static void print_average_failures_per_user(double average_failures) {
+    int average_as_int = (int)average_failures;
+
+    if (average_failures == average_as_int) {
+        printf("%d", average_as_int);
+    } else {
+        printf("%.2f", average_failures);
+    }
+}
+
 void print_bruteforce_alerts(const FailureEventList *list) {
     size_t i;
     size_t rule_index;
     size_t best_start;
     size_t best_end;
-    size_t alert_start;
-    size_t alert_end;
     int best_count;
     int alert_count;
     int found = 0;
@@ -218,36 +291,94 @@ void print_bruteforce_alerts(const FailureEventList *list) {
     }
 
     for (i = 0; i < list->count; i++) {
-        if (ip_already_checked(list, i)) {
+        if (list->items[i].user[0] == '\0' || ip_user_already_checked(list, i)) {
             continue;
         }
 
-        alert_start = 0;
-        alert_end = 0;
         alert_count = 0;
 
         for (rule_index = 0; rule_index < BRUTEFORCE_RULE_COUNT; rule_index++) {
-            find_best_window_for_ip(list,
-                                    list->items[i].ip,
-                                    BRUTEFORCE_RULES[rule_index].window_seconds,
-                                    &best_start,
-                                    &best_end,
-                                    &best_count);
+            find_best_window_for_ip_user(list,
+                                         list->items[i].ip,
+                                         list->items[i].user,
+                                         BRUTEFORCE_RULES[rule_index].window_seconds,
+                                         &best_start,
+                                         &best_end,
+                                         &best_count);
             if (best_count >= BRUTEFORCE_RULES[rule_index].failure_threshold) {
-                alert_start = best_start;
-                alert_end = best_end;
                 alert_count = best_count;
             }
         }
 
         if (alert_count > 0) {
-            print_bruteforce_alert(list, list->items[i].ip, alert_start, alert_end, alert_count);
+            print_bruteforce_alert(list->items[i].ip, list->items[i].user, alert_count);
             found = 1;
         }
     }
 
     if (!found) {
         printf("%s\n", is_ja() ? "ブルートフォース攻撃のパターンは見つかりませんでした。" : "No brute-force patterns found.");
+    }
+}
+
+void print_password_spraying_alerts(const FailureEventList *list) {
+    size_t i;
+    size_t rule_index;
+    size_t best_start;
+    size_t best_end;
+    int best_failures;
+    int best_unique_users;
+    int alert_failures;
+    int alert_unique_users;
+    int found = 0;
+    double average_failures;
+
+    printf("\n" COLOR_BOLD COLOR_RED "===== %s =====" COLOR_RESET "\n",
+           is_ja() ? "パスワードスプレー警告" : "Password Spraying Alerts");
+
+    if (list->count == 0) {
+        printf("%s\n", is_ja() ? "時刻付きの失敗ログは見つかりませんでした。" : "No timestamped failed login events found.");
+        return;
+    }
+
+    for (i = 0; i < list->count; i++) {
+        if (ip_already_checked(list, i)) {
+            continue;
+        }
+
+        alert_failures = 0;
+        alert_unique_users = 0;
+
+        for (rule_index = 0; rule_index < BRUTEFORCE_RULE_COUNT; rule_index++) {
+            find_best_spray_window_for_ip(list,
+                                          list->items[i].ip,
+                                          BRUTEFORCE_RULES[rule_index].window_seconds,
+                                          &best_start,
+                                          &best_end,
+                                          &best_failures,
+                                          &best_unique_users);
+            if (best_unique_users >= PASSWORD_SPRAY_UNIQUE_USER_THRESHOLD) {
+                alert_failures = best_failures;
+                alert_unique_users = best_unique_users;
+            }
+        }
+
+        if (alert_unique_users > 0) {
+            average_failures = (double)alert_failures / alert_unique_users;
+            printf(COLOR_BOLD COLOR_RED "[ALERT] %s" COLOR_RESET "\n",
+                   is_ja() ? "SSHパスワードスプレー攻撃の疑い" : "SSH password spraying suspected");
+            printf("%s: %s\n", is_ja() ? "IP" : "IP", list->items[i].ip);
+            printf("%s: %d\n", is_ja() ? "失敗回数" : "Failures", alert_failures);
+            printf("%s: %d\n", is_ja() ? "ユニークユーザー数" : "Unique Users", alert_unique_users);
+            printf("%s: ", is_ja() ? "ユーザーあたり平均失敗回数" : "Average failures per user");
+            print_average_failures_per_user(average_failures);
+            printf("\n\n");
+            found = 1;
+        }
+    }
+
+    if (!found) {
+        printf("%s\n", is_ja() ? "パスワードスプレー攻撃のパターンは見つかりませんでした。" : "No password spraying patterns found.");
     }
 }
 

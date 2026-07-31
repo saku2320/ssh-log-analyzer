@@ -502,6 +502,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         printf("===== %s =====\n", output_language == OUTPUT_JA ? "失敗IPレポート" : "Failed IP Report");
         printf("%s         : " COLOR_RED "%zu" COLOR_RESET "\n", output_language == OUTPUT_JA ? "追跡IP数" : "Unique IPs tracked", stats.count);
         print_bruteforce_alerts(&failure_events);
+        print_password_spraying_alerts(&failure_events);
         print_post_failure_success_alerts(&failure_events, &success_events);
         print_risk_assessment(&failure_events, &success_events);
         print_geo_warnings(&stats);
@@ -518,6 +519,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         printf("%s       : " COLOR_RED "%zu" COLOR_RESET "\n", output_language == OUTPUT_JA ? "追跡ユーザー数" : "Unique users tracked", users.count);
         print_user_stats(&users);
         print_bruteforce_alerts(&failure_events);
+        print_password_spraying_alerts(&failure_events);
         print_post_failure_success_alerts(&failure_events, &success_events);
         print_risk_assessment(&failure_events, &success_events);
         print_geo_warnings(&stats);
@@ -578,6 +580,7 @@ while (fgets(line, sizeof(line), fp) != NULL) {
 
     print_ip_stats(&stats);
     print_bruteforce_alerts(&failure_events);
+    print_password_spraying_alerts(&failure_events);
     print_post_failure_success_alerts(&failure_events, &success_events);
     print_risk_assessment(&failure_events, &success_events);
     print_geo_warnings(&stats);

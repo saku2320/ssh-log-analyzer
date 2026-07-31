@@ -51,8 +51,11 @@ ssh-log-analyzer$ tree
 #### 国・地域警告
 - 接続元IPに紐づく国・地域情報がログに記録されている場合、そのIPと国・地域を警告表示
 #### ブルートフォース警告
-- 同一IPから短時間に連続失敗が発生した場合、IP、検知期間、失敗回数、対象ユーザを警告表示
+- 同一IPから同一ユーザーへ短時間に連続失敗が発生した場合、IP、対象ユーザー、失敗回数を警告表示
 - 検知条件は `1分以内に10回`、`5分以内に30回`、`10分以内に50回`
+#### パスワードスプレー警告
+- 同一IPから短時間に多数ユーザーへのログイン試行が発生した場合、IP、失敗回数、ユニークユーザー数、ユーザーあたり平均失敗回数を警告表示
+- 検知条件は `1分以内`、`5分以内`、`10分以内` のいずれかで `10ユーザー以上` への失敗ログイン試行
 #### 失敗後ログイン成功警告
 - 同一IP・同一ユーザーで10回以上失敗した後、30分以内にログイン成功した場合、侵入の可能性が高い重大アラートとして表示
 #### 危険度スコア
@@ -105,6 +108,7 @@ ssh-log-analyzer$ tree
 - `su` で切替先ユーザ・ログインユーザ・TTYを詳細表示できるように改良
 - ログに国・地域情報が含まれる場合、接続元IPごとの国・地域表示と警告表示を追加
 - 失敗回数の合計ではなく、一定時間内の連続失敗からSSHブルートフォース攻撃疑いを検知できるように改良
+- 同一IP・同一ユーザーへの連続失敗をブルートフォース攻撃疑い、同一IP・多数ユーザーへの試行をパスワードスプレー攻撃疑いとして分けて検知できるように改良
 - 同一IP・同一ユーザーで繰り返し失敗した後のログイン成功を重大アラートとして検知できるように改良
 - IPごとの危険度スコアを算出し、HIGH/CRITICALのみ理由付きで表示できるように改良
 - 指定した特定IPの時系列表示が可能になった
@@ -152,8 +156,8 @@ make run failed ip ja
 - `sudo`: sudoコマンド実行ログと詳細情報を出力
 - `su`: suコマンド実行ログとauth.logから分かる範囲の詳細情報を出力
 - `ip=<IPアドレス>`: 指定IPのSSH失敗・SSH成功・sudo/su実行を時系列で出力
-- `failed ip`: `Unique IPs tracked`、`Brute-force Alerts`、`Post-failure Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Failed IPs`を出力
-- `failed user`: `Unique users tracked`、`User Statistics`、`Brute-force Alerts`、`Post-failure Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Targeted Users`を出力
+- `failed ip`: `Unique IPs tracked`、`Brute-force Alerts`、`Password Spraying Alerts`、`Post-failure Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Failed IPs`を出力
+- `failed user`: `Unique users tracked`、`User Statistics`、`Brute-force Alerts`、`Password Spraying Alerts`、`Post-failure Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Targeted Users`を出力
 - `success ip`: `Unique IPs tracked`、`IP Statistics`、`Post-failure Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Successful IPs`を出力
 - `success user`: `Unique users tracked`、`User Statistics`、`Post-failure Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Successful Users`を出力
 
@@ -186,9 +190,30 @@ Total su commands   : 0
 `ja` を付けた場合も、ユーザー名、IP、時刻、ログ原文などログ由来の内容はそのままに、見出しや項目名、説明文を日本語で出力する。
 `[ALERT]`、`[CRITICAL]`、`Risk Assessment`、`Risk Level`、`Risk Score`、`LOW`、`MEDIUM`、`HIGH`、`CRITICAL` など、単独で表示される英語ラベルは見やすさのため英語のまま出力する。
 
-ブルートフォース警告では、同一IPについて `1分以内に10回`、`5分以内に30回`、`10分以内に50回` のいずれかを満たす失敗ログを検出する。
-複数条件に該当する場合は、そのIPで最も広い条件に該当した代表区間を表示する。
+ブルートフォース警告では、同一IP・同一ユーザーについて `1分以内に10回`、`5分以内に30回`、`10分以内に50回` のいずれかを満たす失敗ログを検出する。
+複数条件に該当する場合は、そのIP・ユーザーで最も広い条件に該当した代表件数を表示する。
 ログ行に時刻情報がない失敗ログは、短時間判定の対象外となる。
+出力例:
+
+```text
+[ALERT] SSH brute-force suspected
+IP: 192.168.11.223
+User: root
+Failures: 100
+```
+
+パスワードスプレー警告では、同一IPについて `1分以内`、`5分以内`、`10分以内` のいずれかで `10ユーザー以上` への失敗ログイン試行がある場合に検出する。
+複数条件に該当する場合は、そのIPで最も広い条件に該当した代表件数を表示する。
+ログ行に時刻情報がない失敗ログ、またはユーザー名を取得できない失敗ログは、ユニークユーザー数の判定対象外となる。
+出力例:
+
+```text
+[ALERT] SSH password spraying suspected
+IP: 192.168.11.223
+Failures: 120
+Unique Users: 40
+Average failures per user: 3
+```
 
 失敗後ログイン成功警告では、同一IP・同一ユーザーで10回以上失敗した後、30分以内に成功ログが出た場合に `[CRITICAL] Login succeeded after repeated failures` を表示する。
 ログ行に時刻情報がない失敗ログまたは成功ログは、この重大アラート判定の対象外となる。
