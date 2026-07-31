@@ -18,6 +18,7 @@ static void init_log_entry(LogEntry *entry) {
     entry->country[0] = '\0';
     entry->region[0] = '\0';
     entry->user[0] = '\0';
+    entry->auth_method[0] = '\0';
     entry->sudo_user[0] = '\0';
     entry->sudo_target_user[0] = '\0';
     entry->sudo_tty[0] = '\0';
@@ -67,6 +68,48 @@ static int seconds_before_month(int month) {
     return seconds;
 }
 
+static int set_timestamp(LogEntry *entry, const char *month_text, int month, int day, int hour, int minute, int second) {
+    if (month < 1 || month > 12 || day < 1 || day > 31 ||
+        hour < 0 || hour > 23 || minute < 0 || minute > 59 ||
+        second < 0 || second > 59) {
+        return 0;
+    }
+
+    entry->has_timestamp = 1;
+    entry->timestamp_seconds = seconds_before_month(month) +
+                               (day - 1) * 24 * 60 * 60 +
+                               hour * 60 * 60 +
+                               minute * 60 +
+                               second;
+    snprintf(entry->time_text, sizeof(entry->time_text), "%02d:%02d:%02d", hour, minute, second);
+    snprintf(entry->timestamp_text, sizeof(entry->timestamp_text), "%s %d %02d:%02d:%02d",
+             month_text,
+             day,
+             hour,
+             minute,
+             second);
+
+    return 1;
+}
+
+static int extract_iso_timestamp(const char *line, LogEntry *entry) {
+    int year;
+    int month;
+    int day;
+    int hour;
+    int minute;
+    int second;
+    char month_text[8];
+
+    if (sscanf(line, "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &minute, &second) != 6) {
+        return 0;
+    }
+
+    (void)year;
+    snprintf(month_text, sizeof(month_text), "%02d/%02d", month, day);
+    return set_timestamp(entry, month_text, month, day, hour, minute, second);
+}
+
 static void extract_timestamp(const char *line, LogEntry *entry) {
     char month[4];
     int day;
@@ -75,31 +118,21 @@ static void extract_timestamp(const char *line, LogEntry *entry) {
     int second;
     int month_num;
 
+    if (extract_iso_timestamp(line, entry)) {
+        return;
+    }
+
     if (sscanf(line, "%3s %d %d:%d:%d", month, &day, &hour, &minute, &second) != 5) {
         return;
     }
 
     month[3] = '\0';
     month_num = month_number(month);
-    if (month_num == 0 || day < 1 || day > 31 ||
-        hour < 0 || hour > 23 || minute < 0 || minute > 59 ||
-        second < 0 || second > 59) {
+    if (month_num == 0) {
         return;
     }
 
-    entry->has_timestamp = 1;
-    entry->timestamp_seconds = seconds_before_month(month_num) +
-                               (day - 1) * 24 * 60 * 60 +
-                               hour * 60 * 60 +
-                               minute * 60 +
-                               second;
-    snprintf(entry->time_text, sizeof(entry->time_text), "%02d:%02d:%02d", hour, minute, second);
-    snprintf(entry->timestamp_text, sizeof(entry->timestamp_text), "%s %d %02d:%02d:%02d",
-             month,
-             day,
-             hour,
-             minute,
-             second);
+    (void)set_timestamp(entry, month, month_num, day, hour, minute, second);
 }
 
 static const char *skip_spaces(const char *value) {
@@ -262,6 +295,22 @@ static void extract_su_details(const char *line, LogEntry *entry) {
     }
 }
 
+static int extract_success_details(const char *line, LogEntry *entry, const char *prefix, const char *method) {
+    const char *user_start;
+
+    user_start = strstr(line, prefix);
+    if (user_start == NULL) {
+        return 0;
+    }
+
+    entry->is_success = 1;
+    sscanf(user_start + strlen(prefix), "%63s", entry->user);
+    strncpy(entry->auth_method, method, MAX_AUTH_METHOD_LENGTH - 1);
+    entry->auth_method[MAX_AUTH_METHOD_LENGTH - 1] = '\0';
+    extract_ip(line, entry);
+    return 1;
+}
+
 int parse_log_line(const char *line, LogEntry *entry) {
     const char *user_start = NULL;
     const char *user_pos = NULL;
@@ -297,13 +346,8 @@ int parse_log_line(const char *line, LogEntry *entry) {
         }
         extract_ip(line, entry);
 
-    } else if (strstr(line, "Accepted password for ") != NULL) {
-        entry->is_success = 1;
-        user_start = strstr(line, "Accepted password for ");
-        if (user_start != NULL) {
-            sscanf(user_start + strlen("Accepted password for "), "%63s", entry->user);
-        }
-        extract_ip(line, entry);
+    } else if (extract_success_details(line, entry, "Accepted password for ", "password") ||
+               extract_success_details(line, entry, "Accepted publickey for ", "publickey")) {
 
     } else if (strstr(line, "Invalid user ") != NULL) {
         entry->is_failed = 1;

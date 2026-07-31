@@ -253,6 +253,8 @@ int update_success_events(SuccessEventList *list, const LogEntry *entry) {
     list->items[list->count].user[MAX_USER_LENGTH - 1] = '\0';
     strncpy(list->items[list->count].timestamp_text, entry->timestamp_text, MAX_TIMESTAMP_LENGTH - 1);
     list->items[list->count].timestamp_text[MAX_TIMESTAMP_LENGTH - 1] = '\0';
+    strncpy(list->items[list->count].time_text, entry->time_text, MAX_TIME_LENGTH - 1);
+    list->items[list->count].time_text[MAX_TIME_LENGTH - 1] = '\0';
     list->items[list->count].timestamp_seconds = entry->timestamp_seconds;
     list->count++;
 

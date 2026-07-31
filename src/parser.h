@@ -9,6 +9,7 @@
 #define MAX_GEO_LENGTH 64
 #define MAX_TIME_LENGTH 16
 #define MAX_TIMESTAMP_LENGTH 32
+#define MAX_AUTH_METHOD_LENGTH 16
 
 typedef struct {
     int is_failed;
@@ -25,6 +26,7 @@ typedef struct {
     char country[MAX_GEO_LENGTH];
     char region[MAX_GEO_LENGTH];
     char user[MAX_USER_LENGTH];
+    char auth_method[MAX_AUTH_METHOD_LENGTH];
     char sudo_user[MAX_USER_LENGTH];
     char sudo_target_user[MAX_USER_LENGTH];
     char sudo_tty[MAX_TTY_LENGTH];

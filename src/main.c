@@ -27,6 +27,23 @@ typedef enum {
     REPORT_USER
 } ReportMode;
 
+typedef enum {
+    AUDIT_NONE,
+    AUDIT_SESSION
+} AuditMode;
+
+typedef enum {
+    AUDIT_KIND_NONE,
+    AUDIT_KIND_LOGOUT_ERROR,
+    AUDIT_KIND_SSH_DISCONNECT_RECEIVED,
+    AUDIT_KIND_SSH_DISCONNECTED,
+    AUDIT_KIND_SSH_SESSION_OPENED,
+    AUDIT_KIND_SSH_SESSION_CLOSED,
+    AUDIT_KIND_CRON_SESSION_OPENED,
+    AUDIT_KIND_CRON_SESSION_CLOSED,
+    AUDIT_KIND_LOGIND_SESSION
+} AuditKind;
+
 typedef struct {
     char users[256][MAX_USER_LENGTH];
     size_t count;
@@ -41,7 +58,7 @@ typedef struct {
 } IpTimelineStats;
 
 static void print_usage(const char *program_name) {
-    fprintf(stderr, "Usage: %s <logfile> [failed|success|root|sudo|su] [ja]\n", program_name);
+    fprintf(stderr, "Usage: %s <logfile> [failed|success|root|sudo|su|audit] [ja]\n", program_name);
     fprintf(stderr, "       %s <logfile> [failed|success] [ip|user] [ja]\n", program_name);
     fprintf(stderr, "       %s <logfile> ip=<address> [ja]\n", program_name);
 }
@@ -100,6 +117,15 @@ static int parse_ip_timeline_argument(const char *value, const char **target_ip)
 
     *target_ip = value + 3;
     return 1;
+}
+
+static int parse_audit_argument(const char *value, AuditMode *audit_mode) {
+    if (strcmp(value, "audit") == 0 || strcmp(value, "session") == 0 || strcmp(value, "sessions") == 0) {
+        *audit_mode = AUDIT_SESSION;
+        return 1;
+    }
+
+    return 0;
 }
 
 static const char *filter_label(FilterMode filter_mode, OutputLanguage language) {
@@ -224,6 +250,235 @@ static const char *entry_time_display(const LogEntry *entry) {
     return entry->has_timestamp ? entry->time_text : "--:--:--";
 }
 
+static int extract_log_time(const char *line, char *dest, size_t dest_size) {
+    int year;
+    int month;
+    int day;
+    int hour;
+    int minute;
+    int second;
+    char month_text[4];
+
+    if (sscanf(line, "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &minute, &second) == 6) {
+        (void)year;
+        (void)month;
+        (void)day;
+        snprintf(dest, dest_size, "%02d:%02d:%02d", hour, minute, second);
+        return 1;
+    }
+
+    if (sscanf(line, "%3s %d %d:%d:%d", month_text, &day, &hour, &minute, &second) == 5) {
+        snprintf(dest, dest_size, "%02d:%02d:%02d", hour, minute, second);
+        return 1;
+    }
+
+    snprintf(dest, dest_size, "--:--:--");
+    return 0;
+}
+
+static AuditKind audit_kind(const char *line) {
+    if (strstr(line, "syslogin_perform_logout") != NULL) {
+        return AUDIT_KIND_LOGOUT_ERROR;
+    }
+    if (strstr(line, "Received disconnect") != NULL) {
+        return AUDIT_KIND_SSH_DISCONNECT_RECEIVED;
+    }
+    if (strstr(line, "Disconnected from user") != NULL) {
+        return AUDIT_KIND_SSH_DISCONNECTED;
+    }
+    if (strstr(line, "pam_unix(sshd:session): session opened") != NULL) {
+        return AUDIT_KIND_SSH_SESSION_OPENED;
+    }
+    if (strstr(line, "pam_unix(sshd:session): session closed") != NULL) {
+        return AUDIT_KIND_SSH_SESSION_CLOSED;
+    }
+    if (strstr(line, "pam_unix(cron:session): session opened") != NULL) {
+        return AUDIT_KIND_CRON_SESSION_OPENED;
+    }
+    if (strstr(line, "pam_unix(cron:session): session closed") != NULL) {
+        return AUDIT_KIND_CRON_SESSION_CLOSED;
+    }
+    if (strstr(line, "systemd-logind") != NULL &&
+        (strstr(line, "New session") != NULL ||
+         strstr(line, "logged out") != NULL ||
+         strstr(line, "Removed session") != NULL)) {
+        return AUDIT_KIND_LOGIND_SESSION;
+    }
+
+    return AUDIT_KIND_NONE;
+}
+
+static const char *audit_kind_label(AuditKind kind, OutputLanguage language) {
+    switch (kind) {
+        case AUDIT_KIND_LOGOUT_ERROR:
+            return language == OUTPUT_JA ? "logoutエラー" : "logout error";
+        case AUDIT_KIND_SSH_DISCONNECT_RECEIVED:
+            return language == OUTPUT_JA ? "SSH切断受信" : "ssh disconnect received";
+        case AUDIT_KIND_SSH_DISCONNECTED:
+            return language == OUTPUT_JA ? "SSH切断" : "ssh disconnected";
+        case AUDIT_KIND_SSH_SESSION_OPENED:
+            return language == OUTPUT_JA ? "SSHセッション開始" : "ssh session opened";
+        case AUDIT_KIND_SSH_SESSION_CLOSED:
+            return language == OUTPUT_JA ? "SSHセッション終了" : "ssh session closed";
+        case AUDIT_KIND_CRON_SESSION_OPENED:
+            return language == OUTPUT_JA ? "cronセッション開始" : "cron session opened";
+        case AUDIT_KIND_CRON_SESSION_CLOSED:
+            return language == OUTPUT_JA ? "cronセッション終了" : "cron session closed";
+        case AUDIT_KIND_LOGIND_SESSION:
+            return language == OUTPUT_JA ? "logindセッション" : "logind session";
+        case AUDIT_KIND_NONE:
+        default:
+            return language == OUTPUT_JA ? "不明" : "unknown";
+    }
+}
+
+static void set_unknown(char *dest, size_t dest_size, OutputLanguage language) {
+    snprintf(dest, dest_size, "%s", language == OUTPUT_JA ? "(不明)" : "(unknown)");
+}
+
+static void extract_token_after(const char *line,
+                                const char *marker,
+                                char *dest,
+                                size_t dest_size,
+                                OutputLanguage language) {
+    const char *start;
+
+    start = strstr(line, marker);
+    if (start == NULL || sscanf(start + strlen(marker), "%63s", dest) != 1) {
+        set_unknown(dest, dest_size, language);
+    }
+}
+
+static void strip_uid_suffix(char *value) {
+    char *suffix;
+
+    suffix = strchr(value, '(');
+    if (suffix != NULL) {
+        *suffix = '\0';
+    }
+}
+
+static void print_audit_field(OutputLanguage language, const char *en_label, const char *ja_label, const char *value) {
+    printf(language == OUTPUT_JA ? "  %-12s: %s\n" : "  %-12s: %s\n",
+           language == OUTPUT_JA ? ja_label : en_label,
+           value);
+}
+
+static void print_audit_entry(unsigned long index,
+                              AuditKind kind,
+                              const char *line,
+                              const char *time_text,
+                              OutputLanguage language) {
+    char user[MAX_USER_LENGTH];
+    char actor[MAX_USER_LENGTH];
+    char ip[MAX_IP_LENGTH];
+    char port[32];
+    char session[32];
+
+    set_unknown(user, sizeof(user), language);
+    set_unknown(actor, sizeof(actor), language);
+    set_unknown(ip, sizeof(ip), language);
+    set_unknown(port, sizeof(port), language);
+    set_unknown(session, sizeof(session), language);
+
+    printf("[%lu] %s\n", index, audit_kind_label(kind, language));
+    print_audit_field(language, "Time", "時刻", time_text);
+
+    switch (kind) {
+        case AUDIT_KIND_SSH_DISCONNECT_RECEIVED:
+            if (sscanf(strstr(line, "Received disconnect from ") + strlen("Received disconnect from "),
+                       "%63s port %31[^:]", ip, port) != 2) {
+                set_unknown(ip, sizeof(ip), language);
+                set_unknown(port, sizeof(port), language);
+            }
+            print_audit_field(language, "IP", "IP", ip);
+            print_audit_field(language, "Port", "ポート", port);
+            print_audit_field(language, "Detail", "詳細", language == OUTPUT_JA ? "ユーザー操作による切断" : "disconnected by user");
+            break;
+        case AUDIT_KIND_SSH_DISCONNECTED:
+            if (sscanf(strstr(line, "Disconnected from user ") + strlen("Disconnected from user "),
+                       "%63s %63s port %31s", user, ip, port) != 3) {
+                set_unknown(user, sizeof(user), language);
+                set_unknown(ip, sizeof(ip), language);
+                set_unknown(port, sizeof(port), language);
+            }
+            print_audit_field(language, "User", "ユーザー", user);
+            print_audit_field(language, "IP", "IP", ip);
+            print_audit_field(language, "Port", "ポート", port);
+            break;
+        case AUDIT_KIND_SSH_SESSION_OPENED:
+        case AUDIT_KIND_CRON_SESSION_OPENED:
+            extract_token_after(line, "session opened for user ", user, sizeof(user), language);
+            strip_uid_suffix(user);
+            extract_token_after(line, " by ", actor, sizeof(actor), language);
+            strip_uid_suffix(actor);
+            print_audit_field(language, "User", "ユーザー", user);
+            print_audit_field(language, "Opened by", "開始元", actor);
+            break;
+        case AUDIT_KIND_SSH_SESSION_CLOSED:
+        case AUDIT_KIND_CRON_SESSION_CLOSED:
+            extract_token_after(line, "session closed for user ", user, sizeof(user), language);
+            strip_uid_suffix(user);
+            print_audit_field(language, "User", "ユーザー", user);
+            break;
+        case AUDIT_KIND_LOGIND_SESSION:
+            if (sscanf(strstr(line, "New session ") == NULL ? "" : strstr(line, "New session ") + strlen("New session "),
+                       "%31s of user %63[^.]", session, user) == 2) {
+                print_audit_field(language, "Action", "操作", language == OUTPUT_JA ? "セッション開始" : "session created");
+                print_audit_field(language, "Session", "セッション", session);
+                print_audit_field(language, "User", "ユーザー", user);
+            } else if (sscanf(strstr(line, "Session ") == NULL ? "" : strstr(line, "Session ") + strlen("Session "),
+                              "%31s logged out", session) == 1) {
+                print_audit_field(language, "Action", "操作", language == OUTPUT_JA ? "ログアウト" : "logged out");
+                print_audit_field(language, "Session", "セッション", session);
+            } else if (sscanf(strstr(line, "Removed session ") == NULL ? "" : strstr(line, "Removed session ") + strlen("Removed session "),
+                              "%31[^.]", session) == 1) {
+                print_audit_field(language, "Action", "操作", language == OUTPUT_JA ? "セッション削除" : "session removed");
+                print_audit_field(language, "Session", "セッション", session);
+            }
+            break;
+        case AUDIT_KIND_LOGOUT_ERROR:
+            print_audit_field(language, "Detail", "詳細", "logout() returned an error");
+            break;
+        case AUDIT_KIND_NONE:
+        default:
+            break;
+    }
+
+    printf("\n");
+}
+
+static int print_audit_logs(FILE *fp, OutputLanguage language) {
+    char line[MAX_LINE_LENGTH];
+    char time_text[MAX_TIME_LENGTH];
+    AuditKind kind;
+    unsigned long total_lines = 0;
+    unsigned long matched_lines = 0;
+
+    printf("===== %s =====\n", language == OUTPUT_JA ? "監査ログ・補助情報" : "Audit and Supporting Logs");
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        total_lines++;
+        kind = audit_kind(line);
+        if (kind == AUDIT_KIND_NONE) {
+            continue;
+        }
+
+        matched_lines++;
+        (void)extract_log_time(line, time_text, sizeof(time_text));
+        print_audit_entry(matched_lines, kind, line, time_text, language);
+    }
+
+    printf("\n%s : " COLOR_GREEN "%lu" COLOR_RESET "\n",
+           language == OUTPUT_JA ? "読み込んだ行数" : "Total lines read",
+           total_lines);
+    printf("%s : " COLOR_GREEN "%lu" COLOR_RESET "\n",
+           language == OUTPUT_JA ? "監査ログ行数" : "Audit lines matched",
+           matched_lines);
+
+    return 0;
+}
+
 static void init_ip_timeline_stats(IpTimelineStats *timeline_stats) {
     timeline_stats->total_events = 0;
     timeline_stats->failed_count = 0;
@@ -277,8 +532,9 @@ static int handle_ip_timeline_entry(const LogEntry *entry,
             timeline_stats->total_events++;
             timeline_stats->success_count++;
             if (should_print) {
-                printf("%s Accepted password for %s\n",
+                printf("%s Accepted %s for %s\n",
                        entry_time_display(entry),
+                       entry->auth_method[0] == '\0' ? "login" : entry->auth_method,
                        display_value(entry->user, language));
             }
             track_target_user(target_users, entry->user);
@@ -323,6 +579,7 @@ int main(int argc, char *argv[]) {
     UserStatsList users;
     FilterMode filter_mode = FILTER_ALL;
     ReportMode report_mode = REPORT_NONE;
+    AuditMode audit_mode = AUDIT_NONE;
     OutputLanguage output_language = OUTPUT_EN;
     const char *target_ip = NULL;
     TargetUserList target_users;
@@ -344,6 +601,8 @@ int main(int argc, char *argv[]) {
     for (i = 2; i < argc; i++) {
         if (strcmp(argv[i], "ja") == 0) {
             output_language = OUTPUT_JA;
+            continue;
+        } else if (parse_audit_argument(argv[i], &audit_mode)) {
             continue;
         } else if (parse_ip_timeline_argument(argv[i], &target_ip)) {
             continue;
@@ -377,10 +636,22 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    if (audit_mode != AUDIT_NONE && (filter_mode != FILTER_ALL || report_mode != REPORT_NONE || target_ip != NULL)) {
+        fprintf(stderr, "Audit mode cannot be combined with filters, report modes, or IP timeline mode.\n");
+        print_usage(argv[0]);
+        return 1;
+    }
+
     fp = fopen(argv[1], "r");
     if (fp == NULL) {
         perror("Failed to open file");
         return 1;
+    }
+
+    if (audit_mode == AUDIT_SESSION) {
+        i = print_audit_logs(fp, output_language);
+        fclose(fp);
+        return i;
     }
 
 
@@ -536,6 +807,8 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         printf("%s         : " COLOR_GREEN "%zu" COLOR_RESET "\n", output_language == OUTPUT_JA ? "追跡IP数" : "Unique IPs tracked", stats.count);
         print_ip_stats(&stats);
         print_post_failure_success_alerts(&failure_events, &success_events);
+        print_root_success_alerts(&success_events);
+        print_root_success_burst_alerts(&success_events);
         print_risk_assessment(&failure_events, &success_events);
         print_geo_warnings(&stats);
         print_top_successful_ips(&stats, TOP_N);
@@ -551,6 +824,8 @@ while (fgets(line, sizeof(line), fp) != NULL) {
         printf("%s       : " COLOR_GREEN "%zu" COLOR_RESET "\n", output_language == OUTPUT_JA ? "追跡ユーザー数" : "Unique users tracked", users.count);
         print_user_stats(&users);
         print_post_failure_success_alerts(&failure_events, &success_events);
+        print_root_success_alerts(&success_events);
+        print_root_success_burst_alerts(&success_events);
         print_risk_assessment(&failure_events, &success_events);
         print_geo_warnings(&stats);
         print_top_successful_users(&users, TOP_N);
@@ -582,6 +857,8 @@ while (fgets(line, sizeof(line), fp) != NULL) {
     print_bruteforce_alerts(&failure_events);
     print_password_spraying_alerts(&failure_events);
     print_post_failure_success_alerts(&failure_events, &success_events);
+    print_root_success_alerts(&success_events);
+    print_root_success_burst_alerts(&success_events);
     print_risk_assessment(&failure_events, &success_events);
     print_geo_warnings(&stats);
     print_top_failed_ips(&stats, TOP_N);

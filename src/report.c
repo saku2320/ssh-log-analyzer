@@ -12,6 +12,8 @@
 #define CRITICAL_FAILURE_THRESHOLD 10
 #define CRITICAL_SUCCESS_WINDOW_SECONDS 1800
 #define PASSWORD_SPRAY_UNIQUE_USER_THRESHOLD 10
+#define ROOT_SUCCESS_BURST_WINDOW_SECONDS 60
+#define ROOT_SUCCESS_BURST_THRESHOLD 3
 
 static OutputLanguage report_language = OUTPUT_EN;
 
@@ -444,6 +446,114 @@ void print_post_failure_success_alerts(const FailureEventList *failures, const S
 
     if (!found) {
         printf("%s\n", is_ja() ? "繰り返し失敗後のログイン成功は見つかりませんでした。" : "No successful logins after repeated failures found.");
+    }
+}
+
+void print_root_success_alerts(const SuccessEventList *successes) {
+    size_t i;
+    int found = 0;
+
+    printf("\n" COLOR_BOLD COLOR_RED "===== %s =====" COLOR_RESET "\n",
+           is_ja() ? "rootログイン成功警告" : "Root Login Success Alerts");
+
+    if (successes->count == 0) {
+        printf("%s\n", is_ja() ? "時刻付きの成功ログは見つかりませんでした。" : "No timestamped successful login events found.");
+        return;
+    }
+
+    for (i = 0; i < successes->count; i++) {
+        if (strcmp(successes->items[i].user, "root") != 0) {
+            continue;
+        }
+
+        printf(COLOR_BOLD COLOR_RED "[ALERT] %s" COLOR_RESET "\n",
+               is_ja() ? "rootログイン成功" : "Root login succeeded");
+        printf("%s : %s\n", is_ja() ? "IPアドレス" : "IP Address", successes->items[i].ip);
+        printf("%s       : %s\n\n", is_ja() ? "成功時刻" : "Success Time", successes->items[i].time_text);
+        found = 1;
+    }
+
+    if (!found) {
+        printf("%s\n", is_ja() ? "rootログイン成功は見つかりませんでした。" : "No root login successes found.");
+    }
+}
+
+static int success_ip_already_checked(const SuccessEventList *successes, size_t current) {
+    size_t i;
+
+    for (i = 0; i < current; i++) {
+        if (strcmp(successes->items[i].ip, successes->items[current].ip) == 0) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+void print_root_success_burst_alerts(const SuccessEventList *successes) {
+    size_t i;
+    size_t start;
+    size_t end;
+    size_t best_start;
+    size_t best_end;
+    int count;
+    int best_count;
+    int found = 0;
+
+    printf("\n" COLOR_BOLD COLOR_RED "===== %s =====" COLOR_RESET "\n",
+           is_ja() ? "短時間rootログイン成功連発警告" : "Rapid Root Login Success Alerts");
+
+    if (successes->count == 0) {
+        printf("%s\n", is_ja() ? "時刻付きの成功ログは見つかりませんでした。" : "No timestamped successful login events found.");
+        return;
+    }
+
+    for (i = 0; i < successes->count; i++) {
+        if (strcmp(successes->items[i].user, "root") != 0 || success_ip_already_checked(successes, i)) {
+            continue;
+        }
+
+        best_count = 0;
+        best_start = i;
+        best_end = i;
+        for (start = 0; start < successes->count; start++) {
+            if (strcmp(successes->items[start].ip, successes->items[i].ip) != 0 ||
+                strcmp(successes->items[start].user, "root") != 0) {
+                continue;
+            }
+
+            count = 0;
+            for (end = start; end < successes->count; end++) {
+                if (successes->items[end].timestamp_seconds - successes->items[start].timestamp_seconds > ROOT_SUCCESS_BURST_WINDOW_SECONDS) {
+                    break;
+                }
+
+                if (strcmp(successes->items[end].ip, successes->items[i].ip) == 0 &&
+                    strcmp(successes->items[end].user, "root") == 0) {
+                    count++;
+                    if (count > best_count) {
+                        best_count = count;
+                        best_start = start;
+                        best_end = end;
+                    }
+                }
+            }
+        }
+
+        if (best_count >= ROOT_SUCCESS_BURST_THRESHOLD) {
+            printf(COLOR_BOLD COLOR_RED "[ALERT] %s" COLOR_RESET "\n",
+                   is_ja() ? "短時間にrootログイン成功が連発" : "Rapid root login successes detected");
+            printf("%s : %s\n", is_ja() ? "IPアドレス" : "IP Address", successes->items[i].ip);
+            printf("%s   : %s - %s\n", is_ja() ? "検知期間" : "Period", successes->items[best_start].time_text, successes->items[best_end].time_text);
+            printf("%s    : %d\n\n", is_ja() ? "成功回数" : "Successes", best_count);
+            found = 1;
+        }
+    }
+
+    if (!found) {
+        printf(is_ja() ? "%d秒以内に%d回以上のrootログイン成功は見つかりませんでした。\n" : "No root login success bursts found within %d seconds at threshold %d.\n",
+               ROOT_SUCCESS_BURST_WINDOW_SECONDS,
+               ROOT_SUCCESS_BURST_THRESHOLD);
     }
 }
 

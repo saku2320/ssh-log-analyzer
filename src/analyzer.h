@@ -60,6 +60,7 @@ typedef struct {
     char ip[MAX_IP_LENGTH];
     char user[MAX_USER_LENGTH];
     char timestamp_text[MAX_TIMESTAMP_LENGTH];
+    char time_text[MAX_TIME_LENGTH];
     int timestamp_seconds;
 } SuccessEvent;
 

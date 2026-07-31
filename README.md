@@ -15,7 +15,9 @@ ssh-log-analyzer$ tree
 ├── README.md
 ├──.gitignore
 ├── sample_log/
-│   └── auth.log
+│   ├── auth.log
+│   └── sam/
+│       └── auth.log
 └── src/
     ├── analyzer.c
     ├── analyzer.h
@@ -58,6 +60,13 @@ ssh-log-analyzer$ tree
 - 検知条件は `1分以内`、`5分以内`、`10分以内` のいずれかで `10ユーザー以上` への失敗ログイン試行
 #### 失敗後ログイン成功警告
 - 同一IP・同一ユーザーで10回以上失敗した後、30分以内にログイン成功した場合、侵入の可能性が高い重大アラートとして表示
+#### rootログイン成功警告
+- rootでのSSHログイン成功を警告表示
+- 同一IPから1分以内に3回以上rootログイン成功が発生した場合、短時間連発として警告表示
+- `make run`、`make run success ip`、`make run success user` で出力
+#### 監査ログ・補助情報
+- `audit` でSSHセッション開始/終了、SSH切断、systemd-logindのセッション管理、cronセッション、logoutエラーを時刻付きで出力
+- 原文ログをそのまま表示せず、時刻、ユーザー、IP、ポート、セッション番号、操作内容などの項目に整形して表示
 #### 危険度スコア
 - IPごとに攻撃兆候を点数化し、HIGHまたはCRITICALに分類されたIPのみ表示
 - スコア条件は `5分以内の失敗回数`、`rootへのログイン試行`、`存在しないユーザーへの試行`、`10人以上のユーザーを試行`、`失敗後にログイン成功`
@@ -78,10 +87,17 @@ ssh-log-analyzer$ tree
 - `Failed password for invalid user ... from ...`
 - `Failed password for ... from ...`
 - `Accepted password for ... from ...`
+- `Accepted publickey for ... from ...`
 - `Invalid user ... from ...`
 - `pam_unix(sshd:auth): authentication failure; ... rhost=... user=...` (IPのみの取得)
 - `sudo: ... COMMAND=...`
 - `su: (to ...) ...`
+- `pam_unix(sshd:session): session opened/closed ...`
+- `Received disconnect from ...`
+- `Disconnected from user ...`
+- `systemd-logind ... New session / logged out / Removed session ...`
+- `pam_unix(cron:session): session opened/closed ...`
+- `syslogin_perform_logout: logout() returned an error`
 - `country=...` / `region=...` などの国・地域情報を含むログ（ログ内に情報がある場合のみ表示）
 
 ## 進捗
@@ -112,6 +128,9 @@ ssh-log-analyzer$ tree
 - 同一IP・同一ユーザーで繰り返し失敗した後のログイン成功を重大アラートとして検知できるように改良
 - IPごとの危険度スコアを算出し、HIGH/CRITICALのみ理由付きで表示できるように改良
 - 指定した特定IPの時系列表示が可能になった
+- ISO 8601形式のタイムスタンプと公開鍵認証の成功ログ（`Accepted publickey`）に対応
+- rootログイン成功警告と短時間のrootログイン成功連発警告を追加
+- `audit` でセッション管理ログなどの監査ログ・補助情報を整形表示できるようにした
 
 ## 目標
 - ありえない時間帯（企業であれば業務時間外など）に行われたログの検出
@@ -141,6 +160,7 @@ make run success
 make run root
 make run sudo
 make run su
+make run audit
 make run ip=192.0.2.10
 make run failed ip
 make run failed user
@@ -155,15 +175,33 @@ make run failed ip ja
 - `root`: rootログイン試行のみ出力
 - `sudo`: sudoコマンド実行ログと詳細情報を出力
 - `su`: suコマンド実行ログとauth.logから分かる範囲の詳細情報を出力
+- `audit`: セッション管理ログなどの監査ログ・補助情報のみを時刻付きで出力
 - `ip=<IPアドレス>`: 指定IPのSSH失敗・SSH成功・sudo/su実行を時系列で出力
 - `failed ip`: `Unique IPs tracked`、`Brute-force Alerts`、`Password Spraying Alerts`、`Post-failure Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Failed IPs`を出力
 - `failed user`: `Unique users tracked`、`User Statistics`、`Brute-force Alerts`、`Password Spraying Alerts`、`Post-failure Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Targeted Users`を出力
-- `success ip`: `Unique IPs tracked`、`IP Statistics`、`Post-failure Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Successful IPs`を出力
-- `success user`: `Unique users tracked`、`User Statistics`、`Post-failure Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Successful Users`を出力
+- `success ip`: `Unique IPs tracked`、`IP Statistics`、`Post-failure Login Success Alerts`、`Root Login Success Alerts`、`Rapid Root Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Successful IPs`を出力
+- `success user`: `Unique users tracked`、`User Statistics`、`Post-failure Login Success Alerts`、`Root Login Success Alerts`、`Rapid Root Login Success Alerts`、`Risk Assessment`、`Geo Location Warnings`、`Top 5 Successful Users`を出力
 
 `failed` のような単体フィルタを指定した場合は、条件に一致したログ行と一致件数のみを出力する。
 `failed ip` や `success user` のように種類を追加した場合は、指定した集計セクションのみを出力する。
 フィルタを指定しない場合は、すべての集計結果を出力する。
+
+`audit` を指定した場合は、SSHログイン成功・失敗の集計ではなく、セッション管理ログなどの監査ログ・補助情報のみを出力する。
+`audit` は `failed`、`success`、`ip=<IPアドレス>` などの通常フィルタとは同時に指定できない。
+出力例:
+
+```text
+[1] ssh disconnect received
+  Time        : 16:56:32
+  IP          : 10.255.0.1
+  Port        : 38234
+  Detail      : disconnected by user
+
+[2] ssh session opened
+  Time        : 16:56:45
+  User        : root
+  Opened by   : root
+```
 
 `ip=<IPアドレス>` を指定した場合は、通常の集計結果ではなく、指定IPに関する大まかな時系列のみを出力する。
 ヘッダー直下には対象IPのアクセス総数、総成功回数、総失敗回数、sudo総実行回数、su総実行回数を表示する。
@@ -220,6 +258,9 @@ Average failures per user: 3
 失敗後ログイン成功警告では、同一IP・同一ユーザーで10回以上失敗した後、30分以内に成功ログが出た場合に `[CRITICAL] Login succeeded after repeated failures` を表示する。
 ログ行に時刻情報がない失敗ログまたは成功ログは、この重大アラート判定の対象外となる。
 
+rootログイン成功警告では、rootでSSHログインに成功した時刻とIPを `[ALERT] Root login succeeded` として表示する。
+また、同一IPから1分以内に3回以上rootログイン成功が発生した場合は `[ALERT] Rapid root login successes detected` として、検知期間と成功回数を表示する。
+
 危険度スコアでは、IPごとに以下の条件で加点する。
 - `5分以内の失敗回数`: 下表に基づいて加点
 - `rootへのログイン試行`: +20
@@ -250,6 +291,7 @@ gcc -Wall -Wextra -std=c11 -o ssh_log_analyzer src/main.c src/analyzer.c src/par
 ./ssh_log_analyzer sample_log/auth.log failed
 ./ssh_log_analyzer sample_log/auth.log sudo
 ./ssh_log_analyzer sample_log/auth.log su
+./ssh_log_analyzer sample_log/auth.log audit
 ./ssh_log_analyzer sample_log/auth.log ip=192.0.2.10
 ./ssh_log_analyzer sample_log/auth.log failed ip
 ./ssh_log_analyzer sample_log/auth.log failed user
