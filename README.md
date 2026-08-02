@@ -163,6 +163,12 @@ make re
 make help
 ```
 
+日本語で表示したい場合:
+
+```bash
+make help ja
+```
+
 `make commands` でも同じ一覧を表示できます。
 
 ## Web可視化モード
