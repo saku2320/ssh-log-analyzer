@@ -156,6 +156,15 @@ ssh-log-analyzer$ tree
 make re
 ```
 
+## コマンド一覧を確認する
+利用できるMakeコマンドと簡単な説明は、以下で確認できます。
+
+```bash
+make help
+```
+
+`make commands` でも同じ一覧を表示できます。
+
 ## Web可視化モード
 
 ### 起動方法
