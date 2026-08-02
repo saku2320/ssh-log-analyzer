@@ -1,3 +1,4 @@
 ssh_log_analyzer
+ssh_log_web
 *.o
 *.out

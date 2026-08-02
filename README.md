@@ -1,7 +1,7 @@
-## SSHログ解析ツール（CLI）
+# SSHログ解析ツール
 
 ## 概要
-auth.logを解析し、SSHログイン試行やsudo/suコマンド実行を検出・可視化するCLIツール
+auth.logを解析し、SSHログイン試行やsudo/suコマンド実行を検出・可視化するツールです。CLIでの集計表示に加えて、ローカルWeb画面からタブ切り替え、IP検索、言語切り替え、ログファイルアップロードによる再解析ができます。
 
 開発環境：ubuntu(bash) or Fedora Asahi Linux <br>
 実験環境：ubuntu（bash）<br>
@@ -13,7 +13,7 @@ auth.logを解析し、SSHログイン試行やsudo/suコマンド実行を検�
 ssh-log-analyzer$ tree
 ├── Makefile
 ├── README.md
-├──.gitignore
+├── .gitignore
 ├── sample_log/
 │   ├── auth.log
 │   └── sam/
@@ -25,7 +25,8 @@ ssh-log-analyzer$ tree
     ├── parser.c
     ├── parser.h
     ├── report.c
-    └── report.h
+    ├── report.h
+    └── web.c
 ```
 
 ## 出力内容
@@ -67,6 +68,13 @@ ssh-log-analyzer$ tree
 #### 監査ログ・補助情報
 - `audit` でSSHセッション開始/終了、SSH切断、systemd-logindのセッション管理、cronセッション、logoutエラーを時刻付きで出力
 - 原文ログをそのまま表示せず、時刻、ユーザー、IP、ポート、セッション番号、操作内容などの項目に整形して表示
+#### Web可視化モード
+- `make start analyzer` でローカルWebサーバを起動し、ブラウザから `http://localhost:8080` を開いて分析結果を確認できる
+- 画面上部のタブで、概要、失敗、成功、root、sudo、su、監査、IP検索、ユーザー集計を切り替えられる
+- IP検索タブでは検索ボックスにIPアドレスを入力すると、そのIPのログだけを時系列で表示する
+- 右上の `EN` / `日本語` ボタンで、タブに関係なく表示言語を切り替えられる
+- 起動時に絞り込み条件は指定せず、Web画面側で見たい情報を選択する
+- ホーム画面上部のファイル選択ボックスからauth.log形式のログを添付すると、そのログを解析対象に切り替えて再集計する
 #### 危険度スコア
 - IPごとに攻撃兆候を点数化し、HIGHまたはCRITICALに分類されたIPのみ表示
 - スコア条件は `5分以内の失敗回数`、`rootへのログイン試行`、`存在しないユーザーへの試行`、`10人以上のユーザーを試行`、`失敗後にログイン成功`
@@ -131,6 +139,7 @@ ssh-log-analyzer$ tree
 - ISO 8601形式のタイムスタンプと公開鍵認証の成功ログ（`Accepted publickey`）に対応
 - rootログイン成功警告と短時間のrootログイン成功連発警告を追加
 - `audit` でセッション管理ログなどの監査ログ・補助情報を整形表示できるようにした
+- `make start analyzer` で起動するWeb可視化モードを追加し、タブ表示、IP検索、言語切り替え、ログファイルアップロードによる再解析に対応
 
 ## 目標
 - ありえない時間帯（企業であれば業務時間外など）に行われたログの検出
@@ -147,7 +156,49 @@ ssh-log-analyzer$ tree
 make re
 ```
 
-## 実行方法
+## Web可視化モード
+
+### 起動方法
+```bash
+make start analyzer
+```
+
+起動するとターミナルに以下のように表示されます。
+
+```text
+SSH Log Analyzer web UI
+Log file: sample_log/auth.log
+Open: http://localhost:8080
+Press Ctrl+C to stop.
+```
+
+ブラウザで `http://localhost:8080` を開くとWeb画面を確認できます。起動中はターミナルを開いたままにしてください。
+
+別のログファイルやポートで起動する場合:
+
+```bash
+make start analyzer LOGFILE=sample_log/sam/auth.log
+make start analyzer PORT=8081
+make start analyzer LOGFILE=sample_log/sam/auth.log PORT=8081
+```
+
+### 終了方法
+Webサーバを起動しているターミナルで `Ctrl+C` を押すと終了します。
+
+```text
+Ctrl+C
+```
+
+### Web画面でできること
+- ホーム画面上部のファイル選択ボックスからauth.log形式のログを添付して再解析
+- 概要、失敗、成功、root、sudo、su、監査、IP検索、ユーザー集計をタブで切り替え
+- IP検索タブでIPアドレスを入力し、そのIPだけのログを時系列表示
+- 右上の `EN` / `日本語` ボタンで表示言語を切り替え
+- 再読込ボタンで現在の解析対象ログを再集計
+
+アップロードされたログは実行中のWebサーバ内で解析対象に切り替わります。サーバを再起動すると、起動時に指定した `LOGFILE` に戻ります。
+
+## CLI実行方法
 ```bash
 make run
 make run ja
@@ -298,4 +349,7 @@ gcc -Wall -Wextra -std=c11 -o ssh_log_analyzer src/main.c src/analyzer.c src/par
 ./ssh_log_analyzer sample_log/auth.log success ip
 ./ssh_log_analyzer sample_log/auth.log success user
 ./ssh_log_analyzer sample_log/auth.log failed ip ja
+
+gcc -Wall -Wextra -std=c11 -o ssh_log_web src/web.c src/parser.c
+./ssh_log_web sample_log/auth.log 8080
 ```
